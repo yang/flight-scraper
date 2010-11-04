@@ -5,18 +5,30 @@ Automatically search a variety of websites for the best flight deals.
 from selenium.firefox.webdriver import WebDriver
 from selenium.firefox.webelement import WebElement
 from selenium.common.exceptions import NoSuchElementException
-import functools, ludibrio, re, time
-
-wd = WebDriver()
+import cPickle as pickle, cStringIO as StringIO, contextlib, \
+    datetime, functools, logging, ludibrio, os, re, smtplib, subprocess, sys, time
+from email.mime.text import MIMEText
 
 def retry_if_nexist(f):
   @functools.wraps(f)
-  def wrapper(x, retry = True):
+  def wrapper(x, retry = True, maxsec = 60):
+    start = time.time()
     while 1:
       try: return f(x)
       except NoSuchElementException:
-        if retry: time.sleep(1)
-        else: return ludibrio.Dummy()
+        if not retry: return ludibrio.Dummy()
+        if time.time() - start > maxsec: raise timeout_exception()
+        time.sleep(1)
+  return wrapper
+
+class timeout_exception(Exception): pass
+
+def retry_if_timeout(f):
+  @functools.wraps(f)
+  def wrapper(org, dst):
+    while 1:
+      try: return f(org, dst)
+      except timeout_exception: time.sleep(1)
   return wrapper
 
 @retry_if_nexist
@@ -61,6 +73,7 @@ class rich_web_elt(object):
   def __getattr__(self, attr):
     return getattr(self.elt, attr)
 
+@retry_if_timeout
 def united(org, dst):
   wd.get('http://united.com')
   getid('shop_from0_temp').send_keys(org).delay().tab()
@@ -73,6 +86,7 @@ def united(org, dst):
   getid('sideform').submit()
   return toprc(xpath('//div[@class="cloudAmt"]'))
 
+@retry_if_timeout
 def aa(org, dst):
   wd.get('http://aa.com')
   getid('flightSearchForm.tripType.oneWay').click()
@@ -91,7 +105,8 @@ def aa(org, dst):
                    xpaths('//li[@class="tabNotActive"]/a/u')))
   return val, minday
 
-def virgin(org, dst):
+@retry_if_timeout
+def virginamerica(org, dst):
   wd.get('http://virginamerica.com')
   getid('owRadio').click()
   xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).set_selected()
@@ -107,6 +122,7 @@ def virgin(org, dst):
                zip(prcs, xpaths('//*[@class="fsCarouselDate"]')))
   return toprc(prcs[3]), minday
 
+@retry_if_timeout
 def bing(org, dst):
   wd.get('http://bing.com/travel')
   getid('labelOW').click()
@@ -120,18 +136,72 @@ def bing(org, dst):
   getid('submitBtn').click()
   return toprc(xpath('//table[@class="resultsTable"]//span[@class="price"]'))
 
+@retry_if_timeout
 def farecmp():
   pass
 
+@retry_if_timeout
 def jetblue():
   pass
 
+@contextlib.contextmanager
+def quitting(x):
+  try: yield x
+  finally: x.quit()
+
+@contextlib.contextmanager
+def subproc(*args, **kwargs):
+  p = subprocess.Popen(*args, **kwargs)
+  try: yield p
+  finally: p.terminate()
+
 def main():
+  global wd
+
   defaultports = [('phl','sfo'),('ewr','sfo')]
-  airline2orgdsts = dict(virgin = [('jfk','sfo')])
-  for airline in 'aa united bing virgin'.split():
-    for org, dst in airline2orgdsts.get(airline, defaultports):
-      print org, dst, airline, globals()[airline](org, dst)
-  wd.quit()
+  airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
+  airlines = 'aa united bing virginamerica'.split()
+
+  with subproc('Xvfb :1 -screen 0 1600x1200x24'.split()) as xvfb:
+    os.environ['DISPLAY'] = ':1'
+    # this silencing isn't working
+    stdout, stderr = sys.stdout, sys.stderr
+    sys.stdout = open('/dev/null','w')
+    sys.stderr = open('/dev/null','w')
+    with quitting(WebDriver()) as wd:
+      sys.stdout, sys.stderr = stdout, stderr
+
+      out = StringIO.StringIO()
+      logging.basicConfig()
+      newres = {}
+
+      for airline in airlines:
+        for org, dst in airline2orgdsts.get(airline, defaultports):
+          res = globals()[airline](org, dst)
+          val = res[0] if type(res) is tuple else res
+          newres[airline] = val, res
+          msg = '%s to %s on %s.com: %s' % (org, dst, airline, res)
+          print msg
+          print >> out, msg
+
+  #with open(os.path.expanduser('~/.flights.pickle')) as f:
+  #  oldres = pickle.load(f)
+
+  #for airline in airlines:
+  #  (newval, newres), (oldval, oldres) = newres[airline], oldres[airline]
+  #  if newval != oldval and newval <= 180:
+  #    if val <= 180: found = True
+  #    print >> out, org, dst, airline, res
+
+  mail = MIMEText(out.getvalue())
+  mail['From'] = 'yang@zs.ath.cx'
+  mail['To'] = 'yaaang@gmail.com, christinerha@gmail.com'
+  mail['Subject'] = 'Flight alert for %s' % \
+      (datetime.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
+  with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
+    smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())
+
+  #with open(os.path.expanduser('~/.flights.pickle'), 'w') as f:
+  #  pickle.dump(newres, f)
 
 main()

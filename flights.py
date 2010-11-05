@@ -1,12 +1,14 @@
 """
 Automatically search a variety of websites for the best flight deals.
+
+Run with -d to debug, otherwise runs in Xvfb and emails results.
 """
 
 from selenium.firefox.webdriver import WebDriver
 from selenium.firefox.webelement import WebElement
 from selenium.common.exceptions import NoSuchElementException
-import cPickle as pickle, cStringIO as StringIO, contextlib, \
-    datetime, functools, logging, ludibrio, os, re, smtplib, subprocess, sys, time
+import cPickle as pickle, cStringIO as StringIO, contextlib, datetime, \
+    functools, logging, ludibrio, os, re, smtplib, subprocess, sys, time
 from email.mime.text import MIMEText
 
 def retry_if_nexist(f):
@@ -73,11 +75,18 @@ class rich_web_elt(object):
   def __getattr__(self, attr):
     return getattr(self.elt, attr)
 
+def fullcity(tla):
+  return dict(ewr = 'Newark', sfo = 'San Francisco', phl = 'Philadelphia')[tla]
+
 @retry_if_timeout
 def united(org, dst):
   wd.get('http://united.com')
-  getid('shop_from0_temp').send_keys(org).delay().tab()
-  getid('shop_to0_temp').send_keys(dst).delay().tab()
+  while (fullcity(org) not in getid('shop_from0_temp').get_value() and
+         fullcity(dst) not in getid('shop_to0_temp').get_value()):
+    getid('shop_from0_temp').send_keys(org).delay().tab().delay()
+    getid('shop_to0_temp').click().delay()
+    getid('shop_to0_temp').send_keys(dst).delay().tab().delay()
+    getid('shop_from0_temp').click().delay()
   getid('fromnearby1').click()
   getid('tonearby1').click()
   getid('wayOne').click().delay()
@@ -161,9 +170,12 @@ def main():
   defaultports = [('phl','sfo'),('ewr','sfo')]
   airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
   airlines = 'aa united bing virginamerica'.split()
+  airlines = 'united'.split()
 
-  with subproc('Xvfb :1 -screen 0 1600x1200x24'.split()) as xvfb:
-    os.environ['DISPLAY'] = ':1'
+  debug = sys.argv[-1] == '-d'
+  cmd = 'sleep 99999999' if debug else 'Xvfb :1 -screen 0 1600x1200x24'
+  with subproc(cmd.split()) as xvfb:
+    if not debug: os.environ['DISPLAY'] = ':1'
     # this silencing isn't working
     stdout, stderr = sys.stdout, sys.stderr
     sys.stdout = open('/dev/null','w')
@@ -193,13 +205,14 @@ def main():
   #    if val <= 180: found = True
   #    print >> out, org, dst, airline, res
 
-  mail = MIMEText(out.getvalue())
-  mail['From'] = 'yang@zs.ath.cx'
-  mail['To'] = 'yaaang@gmail.com, christinerha@gmail.com'
-  mail['Subject'] = 'Flight alert for %s' % \
-      (datetime.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
-  with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
-    smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())
+  if not debug:
+    mail = MIMEText(out.getvalue())
+    mail['From'] = 'yang@zs.ath.cx'
+    mail['To'] = 'yaaang@gmail.com, christinerha@gmail.com'
+    mail['Subject'] = 'Flight alert for %s' % \
+        (datetime.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
+    with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
+      smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())
 
   #with open(os.path.expanduser('~/.flights.pickle'), 'w') as f:
   #  pickle.dump(newres, f)

@@ -72,6 +72,11 @@ class rich_web_elt(object):
   def option(self, val):
     self.elt.find_element_by_xpath('//option[@value="%s"]' % val).set_selected()
     return self
+  def slow_keys(self, keys):
+    for k in keys:
+      self.send_keys(k)
+      time.sleep(.1)
+    return self
   def __getattr__(self, attr):
     return getattr(self.elt, attr)
 
@@ -81,16 +86,15 @@ def fullcity(tla):
 @retry_if_timeout
 def united(org, dst):
   wd.get('http://united.com')
-  while (fullcity(org) not in getid('shop_from0_temp').get_value() and
+  while (fullcity(org) not in getid('shop_from0_temp').get_value() or
          fullcity(dst) not in getid('shop_to0_temp').get_value()):
-    getid('shop_from0_temp').send_keys(org).delay().tab().delay()
-    getid('shop_to0_temp').click().delay()
-    getid('shop_to0_temp').send_keys(dst).delay().tab().delay()
+    getid('shop_from0_temp').click().delay().send_keys(org).delay(5).tab().delay()
+    getid('shop_to0_temp').click().delay().send_keys(dst).delay(5).tab().delay()
     getid('shop_from0_temp').click().delay()
   getid('fromnearby1').click()
   getid('tonearby1').click()
   getid('wayOne').click().delay()
-  getid('shop_depart0').clear().send_keys('12/31/10')
+  getid('shop_depart0').clear().send_keys('12/31/10').delay().tab().delay()
   getid('SearchByPRICE').click()
   getid('sideform').submit()
   return toprc(xpath('//div[@class="cloudAmt"]'))
@@ -164,13 +168,28 @@ def subproc(*args, **kwargs):
   try: yield p
   finally: p.terminate()
 
-def main():
-  global wd
+def scrape():
+  out = StringIO.StringIO()
+  logging.basicConfig()
+  newres = {}
 
   defaultports = [('phl','sfo'),('ewr','sfo')]
   airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
   airlines = 'aa united bing virginamerica'.split()
-  airlines = 'united'.split()
+
+  for airline in airlines:
+    for org, dst in airline2orgdsts.get(airline, defaultports):
+      res = globals()[airline](org, dst)
+      val = res[0] if type(res) is tuple else res
+      newres[airline] = val, res
+      msg = '%s to %s on %s.com: %s' % (org, dst, airline, res)
+      print msg
+      print >> out, msg
+
+  return out
+
+def main():
+  global wd
 
   debug = sys.argv[-1] == '-d'
   cmd = 'sleep 99999999' if debug else 'Xvfb :1 -screen 0 1600x1200x24'
@@ -183,18 +202,7 @@ def main():
     with quitting(WebDriver()) as wd:
       sys.stdout, sys.stderr = stdout, stderr
 
-      out = StringIO.StringIO()
-      logging.basicConfig()
-      newres = {}
-
-      for airline in airlines:
-        for org, dst in airline2orgdsts.get(airline, defaultports):
-          res = globals()[airline](org, dst)
-          val = res[0] if type(res) is tuple else res
-          newres[airline] = val, res
-          msg = '%s to %s on %s.com: %s' % (org, dst, airline, res)
-          print msg
-          print >> out, msg
+      out = scrape()
 
   #with open(os.path.expanduser('~/.flights.pickle')) as f:
   #  oldres = pickle.load(f)
@@ -217,4 +225,4 @@ def main():
   #with open(os.path.expanduser('~/.flights.pickle'), 'w') as f:
   #  pickle.dump(newres, f)
 
-main()
+if __name__ == '__main__': main()

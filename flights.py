@@ -101,16 +101,16 @@ def united(org, dst):
 
 @retry_if_timeout
 def aa(org, dst):
-  wd.get('http://aa.com')
-  getid('flightSearchForm.tripType.oneWay').click()
-  getid('reservationFlightSearchForm.originAirport').clear().send_keys(org)
-  getid('reservationFlightSearchForm.destinationAirport').clear().send_keys(dst)
+  wd.get('http://www.aa.com/reservation/oneWaySearchAccess.do')
+  getid('flightSearchForm.originAirport').clear().send_keys(org)
+  getid('flightSearchForm.destinationAirport').clear().send_keys(dst)
   getid('flightSearchForm.originAlternateAirportDistance').option(60)
   getid('flightSearchForm.destinationAlternateAirportDistance').option(60)
-  getid('reservationFlightSearchForm.flightParams.flightDateParams.travelMonth').option(12)
-  getid('reservationFlightSearchForm.flightParams.flightDateParams.travelDay').option(31)
-  getid('reservationFlightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
-  getid('reservationFlightSearchForm').submit()
+  getid('flightSearchForm.flightParams.flightDateParams.travelMonth').option(12)
+  getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(31)
+  getid('flightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
+  getid('flightSearchForm.carrierAll').click()
+  getid('flightSearchForm').submit()
   val = toprc(xpath('//span[@class="highlightSubHeader"]/a/span'))
   minday = min((toprc(prc), day.get_text())
                for prc, day in

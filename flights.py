@@ -81,7 +81,11 @@ class rich_web_elt(object):
     return getattr(self.elt, attr)
 
 def fullcity(tla):
-  return dict(ewr = 'Newark', sfo = 'San Francisco', phl = 'Philadelphia')[tla]
+  return dict(ewr = 'Newark',
+      sfo = 'San Francisco',
+      phl = 'Philadelphia',
+      oak = 'Oakland',
+      sjc = 'San Jose')[tla.lower()]
 
 @retry_if_timeout
 def united(org, dst):
@@ -173,7 +177,9 @@ def scrape():
   logging.basicConfig()
   newres = {}
 
-  defaultports = [('phl','sfo'),('ewr','sfo')]
+  orgs = 'ewr phl'.split()
+  dsts = 'oak sfo sjc'.split()
+  defaultports = [(org, dst) for org in orgs for dst in dsts]
   airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
   airlines = 'aa united bing virginamerica'.split()
 

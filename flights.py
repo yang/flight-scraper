@@ -90,11 +90,15 @@ def fullcity(tla):
 @retry_if_timeout
 def united(org, dst):
   wd.get('http://united.com')
+  trial = 0
   while (fullcity(org) not in getid('shop_from0_temp').get_value() or
          fullcity(dst) not in getid('shop_to0_temp').get_value()):
     getid('shop_from0_temp').click().delay().send_keys(org).delay(5).tab().delay()
     getid('shop_to0_temp').click().delay().send_keys(dst).delay(5).tab().delay()
     getid('shop_from0_temp').click().delay()
+    trial += 1
+    if trial > 3:
+      raise timeout_exception()
   #getid('fromnearby1').click()
   #getid('tonearby1').click()
   getid('wayOne').click().delay()

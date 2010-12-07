@@ -181,14 +181,11 @@ def scrape():
   logging.basicConfig()
   newres = {}
 
-  #orgs = 'ewr phl'.split()
-  orgs = 'ewr'.split()
-  #dsts = 'oak sfo sjc'.split()
-  dsts = 'oak'.split()
+  orgs = 'ewr phl'.split()
+  dsts = 'oak sfo sjc'.split()
   defaultports = [(org, dst) for org in orgs for dst in dsts]
   airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
-  #airlines = 'aa united bing virginamerica'.split()
-  airlines = 'aa'.split()
+  airlines = 'aa united bing virginamerica'.split()
 
   for airline in airlines:
     for org, dst in airline2orgdsts.get(airline, defaultports):

@@ -1,14 +1,14 @@
 """
-Automatically search a variety of websites for the best flight deals.
-
-Run with -d to debug, otherwise runs in Xvfb and emails results.
+Drives a browser to search for tickets across multiple airline sites,
+scraping/emailing/plotting fare information.
 """
 
 from selenium.firefox.webdriver import WebDriver
 from selenium.firefox.webelement import WebElement
 from selenium.common.exceptions import NoSuchElementException
-import cPickle as pickle, cStringIO as StringIO, contextlib, datetime, \
-    functools, logging, ludibrio, os, re, smtplib, subprocess, sys, time
+import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
+    datetime, functools, getpass, logging, ludibrio, os, re, smtplib, socket, \
+    subprocess, sys, time
 from email.mime.text import MIMEText
 
 def retry_if_nexist(f):
@@ -181,11 +181,14 @@ def scrape():
   logging.basicConfig()
   newres = {}
 
-  orgs = 'ewr phl'.split()
-  dsts = 'oak sfo sjc'.split()
+  #orgs = 'ewr phl'.split()
+  orgs = 'ewr'.split()
+  #dsts = 'oak sfo sjc'.split()
+  dsts = 'oak'.split()
   defaultports = [(org, dst) for org in orgs for dst in dsts]
   airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
-  airlines = 'aa united bing virginamerica'.split()
+  #airlines = 'aa united bing virginamerica'.split()
+  airlines = 'aa'.split()
 
   for airline in airlines:
     for org, dst in airline2orgdsts.get(airline, defaultports):
@@ -198,13 +201,23 @@ def scrape():
 
   return out
 
-def main():
+def main(argv = sys.argv):
   global wd
 
-  debug = sys.argv[-1] == '-d'
-  cmd = 'sleep 99999999' if debug else 'Xvfb :1 -screen 0 1600x1200x24'
+  default_from = '%s@%s' % (getpass.getuser(), socket.getfqdn())
+
+  p = argparse.ArgumentParser(description=__doc__)
+  p.add_argument('-d', '--debug',
+      help='Run browser directly, without Xvfb.')
+  p.add_argument('-t', '--to',
+      help='Email addresses where results should be sent.')
+  p.add_argument('-f', '--from', dest='from_', default=default_from,
+      help='Email address results are sent from. (default: %s)' % default_from)
+  cfg = p.parse_args(argv[1:])
+
+  cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :1 -screen 0 1600x1200x24'
   with subproc(cmd.split()) as xvfb:
-    if not debug: os.environ['DISPLAY'] = ':1'
+    if not cfg.debug: os.environ['DISPLAY'] = ':1'
     # this silencing isn't working
     stdout, stderr = sys.stdout, sys.stderr
     sys.stdout = open('/dev/null','w')
@@ -223,10 +236,10 @@ def main():
   #    if val <= 180: found = True
   #    print >> out, org, dst, airline, res
 
-  if not debug:
+  if not cfg.debug and cfg.to:
     mail = MIMEText(out.getvalue())
-    mail['From'] = 'yang@zs.ath.cx'
-    mail['To'] = 'yaaang@gmail.com, christinerha@gmail.com'
+    mail['From'] = cfg.from_
+    mail['To'] = cfg.to
     mail['Subject'] = 'Flight alert for %s' % \
         (datetime.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
     with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
@@ -234,5 +247,3 @@ def main():
 
   #with open(os.path.expanduser('~/.flights.pickle'), 'w') as f:
   #  pickle.dump(newres, f)
-
-if __name__ == '__main__': main()

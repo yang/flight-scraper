@@ -6,7 +6,12 @@ setup(
   name = 'flight-scraper',
   version = '0.1',
   packages = find_packages(),
-  install_requires = ['ludibrio>=2.0', 'selenium>=2.0a5'],
+  install_requires =
+    '''
+    argparse>=1.1
+    ludibrio>=2.0
+    selenium>=2.0a5
+    '''.split(),
   entry_points = {
     'console_scripts': 'flightscraper = flightscraper:main'
   },

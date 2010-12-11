@@ -42,9 +42,9 @@ def getid(x): return rich_web_elt(wd.find_element_by_id(x))
 @retry_if_nexist
 def name(x): return rich_web_elt(xpath('//*[@name=%r]' % (x,)))
 
-pat = re.compile(r'\d+')
+price_re = re.compile(r'\d+')
 def toprc(x):
-  return int(pat.search(x.get_text()
+  return int(price_re.search(x.get_text()
                         if type(x) is rich_web_elt or type(x) is WebElement
                         else x).group())
 
@@ -176,6 +176,11 @@ def subproc(*args, **kwargs):
   try: yield p
   finally: p.terminate()
 
+def scrshot(name):
+  tstamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+  fname = '%s %s.png' % (tstamp, name)
+  wd.save_screenshot(fname)
+
 def scrape():
   out = StringIO.StringIO()
   logging.basicConfig()
@@ -195,6 +200,7 @@ def scrape():
       msg = '%s to %s on %s.com: %s' % (org, dst, airline, res)
       print msg
       print >> out, msg
+      scrshot('%s to %s on %s.com - %s' % (org, dst, airline, val))
 
   return out
 

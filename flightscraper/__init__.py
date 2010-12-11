@@ -179,9 +179,10 @@ def subproc(*args, **kwargs):
   finally: p.terminate()
 
 def scrshot(name):
-  tstamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-  fname = '%s %s.png' % (tstamp, name)
-  wd.save_screenshot(fname)
+  if cfg.screenshots:
+    tstamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+    fname = '%s %s.png' % (tstamp, name)
+    wd.save_screenshot(fname)
 
 def scrape():
   out = StringIO.StringIO()
@@ -207,7 +208,7 @@ def scrape():
   return out
 
 def main(argv = sys.argv):
-  global wd
+  global wd, cfg
 
   default_from = '%s@%s' % (getpass.getuser(), socket.getfqdn())
 
@@ -218,6 +219,8 @@ def main(argv = sys.argv):
       help='Email addresses where results should be sent.')
   p.add_argument('-f', '--from', dest='from_', default=default_from,
       help='Email address results are sent from. (default: %s)' % default_from)
+  p.add_argument('-s', '--screenshots',
+      help='Take screenshots of every final page.')
   cfg = p.parse_args(argv[1:])
 
   cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :1 -screen 0 1600x1200x24'

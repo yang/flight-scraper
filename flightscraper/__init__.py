@@ -13,12 +13,12 @@ from email.mime.text import MIMEText
 
 def retry_if_nexist(f):
   @functools.wraps(f)
-  def wrapper(x, retry = True, maxsec = 60):
+  def wrapper(x, retry = True, maxsec = 60, dummy = True):
     start = time.time()
     while 1:
       try: return f(x)
       except NoSuchElementException:
-        if not retry: return ludibrio.Dummy()
+        if not retry: return ludibrio.Dummy() if dummy else None
         if time.time() - start > maxsec: raise timeout_exception()
         time.sleep(1)
   return wrapper
@@ -155,6 +155,8 @@ def bing(org, dst):
   #getid('ne').click()
   getid('leave1').clear().send_keys('12/31/10').delay()
   getid('submitBtn').click()
+  # Wait for "still searching" to go away.
+  while getid('stillSearching', False, dummy=False): pass
   return toprc(xpath('//table[@class="resultsTable"]//span[@class="price"]'))
 
 @retry_if_timeout

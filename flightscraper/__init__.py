@@ -138,7 +138,7 @@ def virginamerica(org, dst):
   xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).set_selected()
   getid('bookFlightCollapseExpandBtn').click().delay()
   name ('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/31/2010').delay()
-  # this sometimes doesn't appear
+  # This sometimes doesn't appear
   getid('idclose', False).click().delay()
   getid('SearchFlightBt').click()
   prcs = xpaths('//*[@class="fsCarouselCost"]')
@@ -220,25 +220,36 @@ def main(argv = sys.argv):
   p = argparse.ArgumentParser(description=__doc__)
   p.add_argument('-d', '--debug', action='store_true',
       help='Run browser directly, without Xvfb.')
-  p.add_argument('-t', '--to',
-      help='Email addresses where results should be sent.')
-  p.add_argument('-f', '--from', dest='from_', default=default_from,
+  p.add_argument('-T', '--mailto',
+      help='''Email addresses where results should be sent. Without this, just
+      print results to stdout.''')
+  p.add_argument('-F', '--mailfrom', default=default_from,
       help='Email address results are sent from. (default: %s)' % default_from)
   p.add_argument('-s', '--screenshots',
       help='Take screenshots of every final page.')
+  p.add_argument('-f', '--origin',
+      help='Space-separated origin airports.')
+  p.add_argument('-t', '--destination',
+      help='Space-separated destination airports.')
+  p.add_argument('websites',
+      help='''Websites to scrape (aa/united/bing/virginamerica). You can also
+      override the airports searched on particular websites with parenthesized
+      space-separated origin-destination pairs, e.g. 'virginamerica(jfk-sfo
+      jfk-las)'.''')
   cfg = p.parse_args(argv[1:])
 
   cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :1 -screen 0 1600x1200x24'
   with subproc(cmd.split()) as xvfb:
     if not cfg.debug: os.environ['DISPLAY'] = ':1'
-    # this silencing isn't working
+    # This silencing isn't working
     stdout, stderr = sys.stdout, sys.stderr
     sys.stdout = open('/dev/null','w')
     sys.stderr = open('/dev/null','w')
     with quitting(WebDriver()) as wd:
       sys.stdout, sys.stderr = stdout, stderr
-
       out = scrape()
+
+  # TODO: aggregate stats
 
   #with open(os.path.expanduser('~/.flights.pickle')) as f:
   #  oldres = pickle.load(f)
@@ -249,10 +260,10 @@ def main(argv = sys.argv):
   #    if val <= 180: found = True
   #    print >> out, org, dst, airline, res
 
-  if not cfg.debug and cfg.to:
+  if not cfg.debug and cfg.mailto:
     mail = MIMEText(out.getvalue())
-    mail['From'] = cfg.from_
-    mail['To'] = cfg.to
+    mail['From'] = cfg.mailfrom
+    mail['To'] = cfg.mailto
     mail['Subject'] = 'Flight alert for %s' % \
         (datetime.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
     with contextlib.closing(smtplib.SMTP('localhost')) as smtp:

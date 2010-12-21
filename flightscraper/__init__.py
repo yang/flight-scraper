@@ -214,7 +214,7 @@ def main(argv = sys.argv):
   default_from = '%s@%s' % (getpass.getuser(), socket.getfqdn())
 
   p = argparse.ArgumentParser(description=__doc__)
-  p.add_argument('-d', '--debug',
+  p.add_argument('-d', '--debug', action='store_true',
       help='Run browser directly, without Xvfb.')
   p.add_argument('-t', '--to',
       help='Email addresses where results should be sent.')

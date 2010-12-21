@@ -11,6 +11,8 @@ import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     subprocess, sys, time
 from email.mime.text import MIMEText
 
+near_org, near_dst = False, False
+
 def retry_if_nexist(f):
   @functools.wraps(f)
   def wrapper(x, retry = True, maxsec = 60, dummy = True):
@@ -99,8 +101,8 @@ def united(org, dst):
     trial += 1
     if trial > 3:
       raise timeout_exception()
-  #getid('fromnearby1').click()
-  #getid('tonearby1').click()
+  if near_org: getid('fromnearby1').click()
+  if near_dst: getid('tonearby1').click()
   getid('wayOne').click().delay()
   getid('shop_depart0').clear().send_keys('12/31/10').delay().tab().delay()
   getid('SearchByPRICE').click()
@@ -112,8 +114,10 @@ def aa(org, dst):
   wd.get('http://www.aa.com/reservation/oneWaySearchAccess.do')
   getid('flightSearchForm.originAirport').clear().send_keys(org)
   getid('flightSearchForm.destinationAirport').clear().send_keys(dst)
-  #getid('flightSearchForm.originAlternateAirportDistance').option(60)
-  #getid('flightSearchForm.destinationAlternateAirportDistance').option(60)
+  if near_org:
+    getid('flightSearchForm.originAlternateAirportDistance').option(60)
+  if near_dst:
+    getid('flightSearchForm.destinationAlternateAirportDistance').option(60)
   getid('flightSearchForm.flightParams.flightDateParams.travelMonth').option(12)
   getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(31)
   getid('flightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
@@ -151,8 +155,8 @@ def bing(org, dst):
   xpath('//span[@class="ac_portName"]/..', False).click().delay(1)
   getid('dest1Text').click().clear().send_keys(dst).delay(5).tab()
   xpath('//span[@class="ac_portName"]/..', False).click().delay(1)
-  #getid('no').click()
-  #getid('ne').click()
+  if near_org: getid('no').click()
+  if near_dst: getid('ne').click()
   getid('leave1').clear().send_keys('12/31/10').delay()
   getid('submitBtn').click()
   # Wait for "still searching" to disappear.

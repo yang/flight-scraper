@@ -155,8 +155,9 @@ def bing(org, dst):
   #getid('ne').click()
   getid('leave1').clear().send_keys('12/31/10').delay()
   getid('submitBtn').click()
-  # Wait for "still searching" to go away.
-  while getid('stillSearching', False, dummy=False): pass
+  # Wait for "still searching" to disappear.
+  while getid('stillSearching', False).get_attribute('style') != 'display: none;':
+    time.sleep(1)
   return toprc(xpath('//table[@class="resultsTable"]//span[@class="price"]'))
 
 @retry_if_timeout

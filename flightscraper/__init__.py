@@ -5,6 +5,7 @@ scraping/emailing/plotting fare information.
 
 from selenium import webdriver
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime, functools, getpass, logging, ludibrio, os, re, smtplib, socket, \
@@ -109,6 +110,7 @@ def united(org, dst):
   getid('sideform').submit()
   return toprc(xpath('//div[@class="cloudAmt"]'))
 
+# +/-3d
 @retry_if_timeout
 def aa(org, dst):
   wd.get('http://www.aa.com/reservation/oneWaySearchAccess.do')
@@ -131,16 +133,14 @@ def aa(org, dst):
                    xpaths('//li[@class="tabNotActive"]/a/u')))
   return val, minday
 
+# +/-3d
 @retry_if_timeout
 def virginamerica(org, dst):
   wd.get('http://virginamerica.com')
   getid('owRadio').click()
   xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).click()
   xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).click()
-  getid('bookFlightCollapseExpandBtn').click().delay()
-  name ('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/31/2010').delay()
-  # This sometimes doesn't appear
-  getid('idclose', False).click().delay()
+  name ('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/21/2012').send_keys(Keys.TAB).delay()
   getid('SearchFlightBt').click()
   prcs = xpaths('//*[@class="fsCarouselCost"]')
   minday = min((toprc(prc), day.text)

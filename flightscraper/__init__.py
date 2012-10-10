@@ -150,19 +150,17 @@ def virginamerica(org, dst):
 @retry_if_timeout
 def bing(org, dst):
   wd.get('http://bing.com/travel')
-  getid('labelOW').click()
-  getid('orig1Text').click().clear().send_keys(org).delay(5).tab()
-  xpath('//span[@class="ac_portName"]/..', False).click().delay(1)
-  getid('dest1Text').click().clear().send_keys(dst).delay(5).tab()
-  xpath('//span[@class="ac_portName"]/..', False).click().delay(1)
-  if near_org: getid('no').click()
-  if near_dst: getid('ne').click()
-  getid('leave1').clear().send_keys('12/31/10').delay()
-  getid('submitBtn').click()
+  getid('oneWayLabel').click()
+  getid('orig1Text').click().clear().send_keys(org).tab()
+  getid('dest1Text').click().clear().send_keys(dst).tab()
+  if near_org: getid('no1').click()
+  if near_dst: getid('ne1').click()
+  getid('leave1').clear().send_keys('12/21/2012')
+  getid('PRI-HP').click()
+  wd.find_element_by_css_selector('.sbmtBtn').click()
   # Wait for "still searching" to disappear.
-  while getid('stillSearching', False).get_attribute('style') != 'display: none;':
-    time.sleep(1)
-  return toprc(xpath('//table[@class="resultsTable"]//span[@class="price"]'))
+  while getid('searching').is_displayed(): time.sleep(1)
+  return toprc(xpath('//span[@class="price"]'))
 
 @retry_if_timeout
 def farecmp():

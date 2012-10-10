@@ -7,11 +7,18 @@ sites, scraping/emailing/plotting fare information.
 Setup
 -----
 
-Non-Python requirements:
+Requires Python 2.7.
 
-    sudo aptitude install firefox xvfb
+Install Xvfb:
 
-To install:
+    sudo aptitude install xvfb
+
+Install [Google Chrome] and [ChromeDriver].
+
+[Google Chrome]: https://www.google.com/chrome/
+[ChromeDriver]: http://code.google.com/p/chromedriver/downloads/list
+
+Install flight-scraper:
 
     pip install flight-scraper
 

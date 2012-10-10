@@ -3,8 +3,8 @@ Drives a browser to search for tickets across multiple airline sites,
 scraping/emailing/plotting fare information.
 """
 
-from selenium.firefox.webdriver import WebDriver
-from selenium.firefox.webelement import WebElement
+from selenium import webdriver
+from selenium.webdriver.remote.webelement import WebElement
 from selenium.common.exceptions import NoSuchElementException
 import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime, functools, getpass, logging, ludibrio, os, re, smtplib, socket, \
@@ -46,7 +46,7 @@ def name(x): return rich_web_elt(xpath('//*[@name=%r]' % (x,)))
 
 price_re = re.compile(r'\d+')
 def toprc(x):
-  return int(price_re.search(x.get_text()
+  return int(price_re.search(x.text
                         if type(x) is rich_web_elt or type(x) is WebElement
                         else x).group())
 
@@ -72,7 +72,7 @@ class rich_web_elt(object):
     self.elt.send_keys('\n')
     return self
   def option(self, val):
-    self.elt.find_element_by_xpath('//option[@value="%s"]' % val).set_selected()
+    self.elt.find_element_by_xpath('//option[@value=%r]' % str(val)).click()
     return self
   def slow_keys(self, keys):
     for k in keys:
@@ -118,13 +118,14 @@ def aa(org, dst):
     getid('flightSearchForm.originAlternateAirportDistance').option(60)
   if near_dst:
     getid('flightSearchForm.destinationAlternateAirportDistance').option(60)
+  getid('flightSearchForm.searchType.matrix').click()
   getid('flightSearchForm.flightParams.flightDateParams.travelMonth').option(12)
   getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(31)
   getid('flightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
   getid('flightSearchForm.carrierAll').click()
   getid('flightSearchForm').submit()
   val = toprc(xpath('//span[@class="highlightSubHeader"]/a/span'))
-  minday = min((toprc(prc), day.get_text())
+  minday = min((toprc(prc), day.text)
                for prc, day in
                zip(xpaths('//li[@class="tabNotActive"]/a/span'),
                    xpaths('//li[@class="tabNotActive"]/a/u')))
@@ -134,15 +135,15 @@ def aa(org, dst):
 def virginamerica(org, dst):
   wd.get('http://virginamerica.com')
   getid('owRadio').click()
-  xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).set_selected()
-  xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).set_selected()
+  xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).click()
+  xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).click()
   getid('bookFlightCollapseExpandBtn').click().delay()
   name ('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/31/2010').delay()
   # This sometimes doesn't appear
   getid('idclose', False).click().delay()
   getid('SearchFlightBt').click()
   prcs = xpaths('//*[@class="fsCarouselCost"]')
-  minday = min((toprc(prc), day.get_text())
+  minday = min((toprc(prc), day.text)
                for prc, day in
                zip(prcs, xpaths('//*[@class="fsCarouselDate"]')))
   return toprc(prcs[3]), minday
@@ -245,7 +246,7 @@ def main(argv = sys.argv):
     stdout, stderr = sys.stdout, sys.stderr
     sys.stdout = open('/dev/null','w')
     sys.stderr = open('/dev/null','w')
-    with quitting(WebDriver()) as wd:
+    with quitting(webdriver.Chrome()) as wd:
       sys.stdout, sys.stderr = stdout, stderr
       out = scrape()
 

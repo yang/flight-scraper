@@ -4,13 +4,12 @@ from setuptools import setup, find_packages
 
 setup(
   name = 'flight-scraper',
-  version = '0.1',
+  version = '0.2',
   packages = find_packages(),
   install_requires =
     '''
-    argparse>=1.1
-    ludibrio>=2.0
-    selenium>=2.0a5
+    ludibrio>=3.1.0
+    selenium>=2.25.0
     '''.split(),
   entry_points = {
     'console_scripts': 'flightscraper = flightscraper:main'

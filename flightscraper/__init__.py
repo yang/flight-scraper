@@ -16,10 +16,10 @@ near_org, near_dst = False, False
 
 def retry_if_nexist(f):
   @functools.wraps(f)
-  def wrapper(x, retry = True, maxsec = 60, dummy = True):
+  def wrapper(self, x, retry = True, maxsec = 60, dummy = True):
     start = time.time()
     while 1:
-      try: return f(x)
+      try: return f(self, x)
       except NoSuchElementException:
         if not retry: return ludibrio.Dummy() if dummy else None
         if time.time() - start > maxsec: raise timeout_exception()
@@ -30,20 +30,23 @@ class timeout_exception(Exception): pass
 
 def retry_if_timeout(f):
   @functools.wraps(f)
-  def wrapper(org, dst):
+  def wrapper(*args, **kw):
     while 1:
-      try: return f(org, dst)
+      try: return f(*args, **kw)
       except timeout_exception: time.sleep(1)
   return wrapper
 
-@retry_if_nexist
-def xpath(x): return rich_web_elt(wd.find_element_by_xpath(x))
-@retry_if_nexist
-def xpaths(x): return map(rich_web_elt, wd.find_elements_by_xpath(x))
-@retry_if_nexist
-def getid(x): return rich_web_elt(wd.find_element_by_id(x))
-@retry_if_nexist
-def name(x): return rich_web_elt(xpath('//*[@name=%r]' % (x,)))
+class rich_driver(object):
+  def __init__(self, wd): self.wd = wd
+  def __getattr__(self, attr): return getattr(self.wd, attr)
+  @retry_if_nexist
+  def xpath(self, x): return rich_web_elt(self.wd.find_element_by_xpath(x))
+  @retry_if_nexist
+  def xpaths(self, x): return map(rich_web_elt, self.wd.find_elements_by_xpath(x))
+  @retry_if_nexist
+  def getid(self, x): return rich_web_elt(self.wd.find_element_by_id(x))
+  @retry_if_nexist
+  def name(self, x): return rich_web_elt(self.xpath('//*[@name=%r]' % (x,)))
 
 price_re = re.compile(r'\d+')
 def toprc(x):
@@ -91,17 +94,17 @@ def fullcity(tla):
       sjc = 'San Jose')[tla.lower()]
 
 @retry_if_timeout
-def united(org, dst, nearby=False):
+def united(wd, org, dst, nearby=False):
   wd.get('http://united.com')
-  getid('ctl00_ContentInfo_Booking1_rdoSearchType2').click()
-  getid('ctl00_ContentInfo_Booking1_Origin_txtOrigin').clear().send_keys(org)
-  getid('ctl00_ContentInfo_Booking1_Destination_txtDestination').clear().send_keys(dst)
+  wd.getid('ctl00_ContentInfo_Booking1_rdoSearchType2').click()
+  wd.getid('ctl00_ContentInfo_Booking1_Origin_txtOrigin').clear().send_keys(org)
+  wd.getid('ctl00_ContentInfo_Booking1_Destination_txtDestination').clear().send_keys(dst)
   if nearby:
-    getid('ctl00_ContentInfo_Booking1_Nearbyair_chkFltOpt').click()
-  getid('ctl00_ContentInfo_Booking1_AltDate_chkFltOpt').click()
-  getid('ctl00_ContentInfo_Booking1_DepDateTime_rdoDateFlex').click()
-  getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option('12/1/2012').click()
-  getid('ctl00_ContentInfo_Booking1_btnSearchFlight').click()
+    wd.getid('ctl00_ContentInfo_Booking1_Nearbyair_chkFltOpt').click()
+  wd.getid('ctl00_ContentInfo_Booking1_AltDate_chkFltOpt').click()
+  wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_rdoDateFlex').click()
+  wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option('12/1/2012').click()
+  wd.getid('ctl00_ContentInfo_Booking1_btnSearchFlight').click()
   def gen():
     for x in wd.find_elements_by_css_selector('.on'):
       date, _, prc = x.text.split('\n')
@@ -111,56 +114,56 @@ def united(org, dst, nearby=False):
 
 # +/-3d
 @retry_if_timeout
-def aa(org, dst):
+def aa(wd, org, dst):
   wd.get('http://www.aa.com/reservation/oneWaySearchAccess.do')
-  getid('flightSearchForm.originAirport').clear().send_keys(org)
-  getid('flightSearchForm.destinationAirport').clear().send_keys(dst)
+  wd.getid('flightSearchForm.originAirport').clear().send_keys(org)
+  wd.getid('flightSearchForm.destinationAirport').clear().send_keys(dst)
   if near_org:
-    getid('flightSearchForm.originAlternateAirportDistance').option(60)
+    wd.getid('flightSearchForm.originAlternateAirportDistance').option(60)
   if near_dst:
-    getid('flightSearchForm.destinationAlternateAirportDistance').option(60)
-  getid('flightSearchForm.searchType.matrix').click()
-  getid('flightSearchForm.flightParams.flightDateParams.travelMonth').option(12)
-  getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(31)
-  getid('flightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
-  getid('flightSearchForm.carrierAll').click()
-  getid('flightSearchForm').submit()
-  val = toprc(xpath('//span[@class="highlightSubHeader"]/a/span'))
+    wd.getid('flightSearchForm.destinationAlternateAirportDistance').option(60)
+  wd.getid('flightSearchForm.searchType.matrix').click()
+  wd.getid('flightSearchForm.flightParams.flightDateParams.travelMonth').option(12)
+  wd.getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(31)
+  wd.getid('flightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
+  wd.getid('flightSearchForm.carrierAll').click()
+  wd.getid('flightSearchForm').submit()
+  val = toprc(wd.xpath('//span[@class="highlightSubHeader"]/a/span'))
   minday = min((toprc(prc), day.text)
                for prc, day in
-               zip(xpaths('//li[@class="tabNotActive"]/a/span'),
-                   xpaths('//li[@class="tabNotActive"]/a/u')))
+               zip(wd.xpaths('//li[@class="tabNotActive"]/a/span'),
+                   wd.xpaths('//li[@class="tabNotActive"]/a/u')))
   return val, minday
 
 # +/-3d
 @retry_if_timeout
-def virginamerica(org, dst):
+def virginamerica(wd, org, dst):
   wd.get('http://virginamerica.com')
-  getid('owRadio').click()
-  xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).click()
-  xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).click()
-  name ('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/21/2012').tab().delay()
-  getid('SearchFlightBt').click()
-  prcs = xpaths('//*[@class="fsCarouselCost"]')
+  wd.getid('owRadio').click()
+  wd.xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).click()
+  wd.xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).click()
+  wd.name('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/21/2012').tab().delay()
+  wd.getid('SearchFlightBt').click()
+  prcs = wd.xpaths('//*[@class="fsCarouselCost"]')
   minday = min((toprc(prc), day.text)
                for prc, day in
-               zip(prcs, xpaths('//*[@class="fsCarouselDate"]')))
+               zip(prcs, wd.xpaths('//*[@class="fsCarouselDate"]')))
   return toprc(prcs[3]), minday
 
 @retry_if_timeout
-def bing(org, dst):
+def bing(wd, org, dst):
   wd.get('http://bing.com/travel')
-  getid('oneWayLabel').click()
-  getid('orig1Text').click().clear().send_keys(org).tab()
-  getid('dest1Text').click().clear().send_keys(dst).tab()
-  if near_org: getid('no1').click()
-  if near_dst: getid('ne1').click()
-  getid('leave1').clear().send_keys('12/21/2012')
-  getid('PRI-HP').click()
+  wd.getid('oneWayLabel').click()
+  wd.getid('orig1Text').click().clear().send_keys(org).tab()
+  wd.getid('dest1Text').click().clear().send_keys(dst).tab()
+  if near_org: wd.getid('no1').click()
+  if near_dst: wd.getid('ne1').click()
+  wd.getid('leave1').clear().send_keys('12/21/2012')
+  wd.getid('PRI-HP').click()
   wd.find_element_by_css_selector('.sbmtBtn').click()
   # Wait for "still searching" to disappear.
-  while getid('searching').is_displayed(): time.sleep(1)
-  return toprc(xpath('//span[@class="price"]'))
+  while wd.getid('searching').is_displayed(): time.sleep(1)
+  return toprc(wd.xpath('//span[@class="price"]'))
 
 @retry_if_timeout
 def farecmp():
@@ -182,37 +185,35 @@ def subproc(*args, **kwargs):
   finally: p.terminate(); p.wait()
 
 def scrshot(name):
-  if cfg.screenshots:
-    tstamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-    fname = '%s %s.png' % (tstamp, name)
-    wd.save_screenshot(fname)
+  tstamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+  fname = '%s %s.png' % (tstamp, name)
+  wd.save_screenshot(fname)
 
-def scrape():
+def scrape(wd, cfg):
   out = StringIO.StringIO()
   logging.basicConfig()
   newres = {}
 
-  orgs = 'ewr phl'.split()
-  dsts = 'oak sfo sjc'.split()
+  orgs = cfg.origin.split()
+  dsts = cfg.destination.split()
   defaultports = [(org, dst) for org in orgs for dst in dsts]
   airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
-  airlines = 'aa united bing virginamerica'.split()
+  airlines = cfg.websites
 
   for airline in airlines:
     for org, dst in airline2orgdsts.get(airline, defaultports):
-      res = globals()[airline](org, dst)
+      res = globals()[airline](wd, org, dst)
       val = res[0] if type(res) is tuple else res
       newres[airline] = val, res
       msg = '%s to %s on %s.com: %s' % (org, dst, airline, res)
       print msg
       print >> out, msg
-      scrshot('%s to %s on %s.com - %s' % (org, dst, airline, val))
+      if cfg.screenshots:
+        scrshot('%s to %s on %s.com - %s' % (org, dst, airline, val))
 
   return out
 
 def main(argv = sys.argv):
-  global wd, cfg
-
   default_from = '%s@%s' % (getpass.getuser(), socket.getfqdn())
 
   p = argparse.ArgumentParser(description=__doc__)
@@ -229,7 +230,7 @@ def main(argv = sys.argv):
       help='Space-separated origin airports.')
   p.add_argument('-t', '--destination',
       help='Space-separated destination airports.')
-  p.add_argument('websites',
+  p.add_argument('websites', nargs='+',
       help='''Websites to scrape (aa/united/bing/virginamerica). You can also
       override the airports searched on particular websites with parenthesized
       space-separated origin-destination pairs, e.g. 'virginamerica(jfk-sfo
@@ -243,9 +244,9 @@ def main(argv = sys.argv):
     stdout, stderr = sys.stdout, sys.stderr
     sys.stdout = open('/dev/null','w')
     sys.stderr = open('/dev/null','w')
-    with quitting(webdriver.Chrome()) as wd:
+    with quitting(rich_driver(webdriver.Chrome())) as wd:
       sys.stdout, sys.stderr = stdout, stderr
-      out = scrape()
+      out = scrape(wd, cfg)
 
   # TODO: aggregate stats
 

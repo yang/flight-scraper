@@ -67,10 +67,10 @@ class rich_web_elt(object):
     time.sleep(delay)
     return self
   def tab(self):
-    self.elt.send_keys('\t')
+    self.elt.send_keys(Keys.TAB)
     return self
   def enter(self):
-    self.elt.send_keys('\n')
+    self.elt.send_keys(Keys.ENTER)
     return self
   def option(self, val):
     self.elt.find_element_by_xpath('//option[@value=%r]' % str(val)).click()
@@ -140,7 +140,7 @@ def virginamerica(org, dst):
   getid('owRadio').click()
   xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).click()
   xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).click()
-  name ('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/21/2012').send_keys(Keys.TAB).delay()
+  name ('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/21/2012').tab().delay()
   getid('SearchFlightBt').click()
   prcs = xpaths('//*[@class="fsCarouselCost"]')
   minday = min((toprc(prc), day.text)

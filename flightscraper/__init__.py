@@ -181,7 +181,7 @@ def quitting(x):
 def subproc(*args, **kwargs):
   p = subprocess.Popen(*args, **kwargs)
   try: yield p
-  finally: p.terminate()
+  finally: p.terminate(); p.wait()
 
 def scrshot(name):
   if cfg.screenshots:

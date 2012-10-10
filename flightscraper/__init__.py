@@ -238,9 +238,9 @@ def main(argv = sys.argv):
       jfk-las)'.''')
   cfg = p.parse_args(argv[1:])
 
-  cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :1 -screen 0 1600x1200x24'
+  cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :10 -screen 0 1600x1200x24'
   with subproc(cmd.split()) as xvfb:
-    if not cfg.debug: os.environ['DISPLAY'] = ':1'
+    if not cfg.debug: os.environ['DISPLAY'] = ':10'
     # This silencing isn't working
     stdout, stderr = sys.stdout, sys.stderr
     sys.stdout = open('/dev/null','w')

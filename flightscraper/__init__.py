@@ -91,24 +91,23 @@ def fullcity(tla):
       sjc = 'San Jose')[tla.lower()]
 
 @retry_if_timeout
-def united(org, dst):
+def united(org, dst, nearby=False):
   wd.get('http://united.com')
-  trial = 0
-  while (fullcity(org) not in getid('shop_from0_temp').get_value() or
-         fullcity(dst) not in getid('shop_to0_temp').get_value()):
-    getid('shop_from0_temp').click().delay().send_keys(org).delay(5).tab().delay()
-    getid('shop_to0_temp').click().delay().send_keys(dst).delay(5).tab().delay()
-    getid('shop_from0_temp').click().delay()
-    trial += 1
-    if trial > 3:
-      raise timeout_exception()
-  if near_org: getid('fromnearby1').click()
-  if near_dst: getid('tonearby1').click()
-  getid('wayOne').click().delay()
-  getid('shop_depart0').clear().send_keys('12/31/10').delay().tab().delay()
-  getid('SearchByPRICE').click()
-  getid('sideform').submit()
-  return toprc(xpath('//div[@class="cloudAmt"]'))
+  getid('ctl00_ContentInfo_Booking1_rdoSearchType2').click()
+  getid('ctl00_ContentInfo_Booking1_Origin_txtOrigin').clear().send_keys(org)
+  getid('ctl00_ContentInfo_Booking1_Destination_txtDestination').clear().send_keys(dst)
+  if nearby:
+    getid('ctl00_ContentInfo_Booking1_Nearbyair_chkFltOpt').click()
+  getid('ctl00_ContentInfo_Booking1_AltDate_chkFltOpt').click()
+  getid('ctl00_ContentInfo_Booking1_DepDateTime_rdoDateFlex').click()
+  getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option('12/1/2012').click()
+  getid('ctl00_ContentInfo_Booking1_btnSearchFlight').click()
+  def gen():
+    for x in wd.find_elements_by_css_selector('.on'):
+      date, _, prc = x.text.split('\n')
+      yield toprc(prc), date
+  # TODO not the price for the requested target date
+  return toprc(min(b for a,b in gen())), min(gen())
 
 # +/-3d
 @retry_if_timeout

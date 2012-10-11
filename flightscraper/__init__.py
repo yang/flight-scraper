@@ -29,17 +29,23 @@ def parse_date(text):
     text = space.split(text, 1)[1]
   return dt.date(*date_parser.parse(text)[0][:3])
 
-def retry_if_nexist(f):
-  @functools.wraps(f)
-  def wrapper(self, x, retry = True, maxsec = 60, dummy = True):
-    start = time.time()
-    while 1:
-      try: return f(self, x)
-      except NoSuchElementException:
-        if not retry: return ludibrio.Dummy() if dummy else None
-        if time.time() - start > maxsec: raise timeout_exception()
-        time.sleep(1)
-  return wrapper
+def retry_if_nexist(multireturn=False):
+  def dec(f):
+    @functools.wraps(f)
+    def wrapper(self, x, retry = True, maxsec = 60, dummy = True, permit_none = False):
+      start = time.time()
+      while 1:
+        try:
+          res = f(self, x)
+          if multireturn and not permit_none and res == []:
+            raise NoSuchElementException()
+          return res
+        except NoSuchElementException:
+          if not retry: return ludibrio.Dummy() if dummy else None
+          if time.time() - start > maxsec: raise timeout_exception()
+          time.sleep(1)
+    return wrapper
+  return dec
 
 class timeout_exception(Exception): pass
 
@@ -65,17 +71,17 @@ class rich_driver(object):
     the form.  Useful if you want to take a screenshot, make some edits,
     etc."""
     pass
-  @retry_if_nexist
+  @retry_if_nexist()
   def xpath(self, x): return rich_web_elt(self.wd.find_element_by_xpath(x))
-  @retry_if_nexist
+  @retry_if_nexist(True)
   def xpaths(self, x): return map(rich_web_elt, self.wd.find_elements_by_xpath(x))
-  @retry_if_nexist
+  @retry_if_nexist()
   def getid(self, x): return rich_web_elt(self.wd.find_element_by_id(x))
-  @retry_if_nexist
+  @retry_if_nexist()
   def name(self, x): return rich_web_elt(self.xpath('//*[@name=%r]' % (x,)))
-  @retry_if_nexist
+  @retry_if_nexist()
   def css(self, x): return rich_web_elt(self.wd.find_element_by_css_selector(x))
-  @retry_if_nexist
+  @retry_if_nexist(True)
   def csss(self, x): return map(rich_web_elt, self.wd.find_elements_by_css_selector(x))
 
 price_re = re.compile(r'\d+')

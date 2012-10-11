@@ -17,7 +17,9 @@ from parsedatetime import parsedatetime as pdt, parsedatetime_consts as pdc
 date_parser = pdt.Calendar(pdc.Constants())
 
 def month_of(date): return date + rd.relativedelta(day=1)
-def fmt_date(date): return date.strftime('%m/%d/%Y')
+def fmt_date(date, short=False):
+  return date.strftime('%m/%d/%Y') if not short else \
+      '%s/%s/%s' % (date.month, date.day, date.year)
 def parse_date(text):
   return dt.date(*date_parser.parse(text.split(' ', 1)[1])[0][:3])
 
@@ -128,7 +130,7 @@ def united(wd, org, dst, date, nearby=False):
     wd.getid('ctl00_ContentInfo_Booking1_Nearbyair_chkFltOpt').click()
   wd.getid('ctl00_ContentInfo_Booking1_AltDate_chkFltOpt').click()
   wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_rdoDateFlex').click()
-  wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option(fmt_date(month_of(date))).click()
+  wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option(fmt_date(month_of(date), True)).click()
   wd.ckpt()
   wd.getid('ctl00_ContentInfo_Booking1_btnSearchFlight').click()
   def gen():

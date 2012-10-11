@@ -112,7 +112,7 @@ class rich_web_elt(object):
     self.elt.send_keys(Keys.ENTER)
     return self
   def option(self, val):
-    self.elt.find_element_by_xpath('//option[@value=%r]' % str(val)).click()
+    self.elt.find_element_by_xpath('option[@value=%r]' % str(val)).click()
     return self
   def slow_keys(self, keys):
     for k in keys:

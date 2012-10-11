@@ -12,8 +12,6 @@ import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     subprocess, sys, time
 from email.mime.text import MIMEText
 
-near_org, near_dst = False, False
-
 def retry_if_nexist(f):
   @functools.wraps(f)
   def wrapper(self, x, retry = True, maxsec = 60, dummy = True):
@@ -114,14 +112,15 @@ def united(wd, org, dst, nearby=False):
 
 # +/-3d
 @retry_if_timeout
-def aa(wd, org, dst):
+def aa(wd, org, dst, dist_org=0, dist_dst=0):
+  for dist in dist_org, dist_dst:
+    if dist not in [None, 0, 30, 60, 90]:
+      raise Exception('dist_org/dist_dst must be in [0,30,60,90]')
   wd.get('http://www.aa.com/reservation/oneWaySearchAccess.do')
   wd.getid('flightSearchForm.originAirport').clear().send_keys(org)
   wd.getid('flightSearchForm.destinationAirport').clear().send_keys(dst)
-  if near_org:
-    wd.getid('flightSearchForm.originAlternateAirportDistance').option(60)
-  if near_dst:
-    wd.getid('flightSearchForm.destinationAlternateAirportDistance').option(60)
+  wd.getid('flightSearchForm.originAlternateAirportDistance').option(dist_org)
+  wd.getid('flightSearchForm.destinationAlternateAirportDistance').option(dist_dst)
   wd.getid('flightSearchForm.searchType.matrix').click()
   wd.getid('flightSearchForm.flightParams.flightDateParams.travelMonth').option(12)
   wd.getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(31)
@@ -151,7 +150,7 @@ def virginamerica(wd, org, dst):
   return toprc(prcs[3]), minday
 
 @retry_if_timeout
-def bing(wd, org, dst):
+def bing(wd, org, dst, near_org=False, near_dst=False):
   wd.get('http://bing.com/travel')
   wd.getid('oneWayLabel').click()
   wd.getid('orig1Text').click().clear().send_keys(org).tab()

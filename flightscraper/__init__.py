@@ -119,6 +119,11 @@ class rich_web_elt(object):
       self.send_keys(k)
       time.sleep(.1)
     return self
+  def wait_displayed(self, sleep=1, max=20):
+    start = time.time()
+    while time.time() - start < max and not self.elt.is_displayed():
+      time.sleep(sleep)
+    return self
   def __getattr__(self, attr):
     return getattr(self.elt, attr)
 
@@ -206,8 +211,8 @@ def bing(wd, org, dst, date, near_org=False, near_dst=False):
   wd.getid('oneWayLabel').click()
   wd.getid('orig1Text').click().clear().send_keys(org).tab()
   wd.getid('dest1Text').click().clear().send_keys(dst).tab()
-  if near_org: wd.getid('no1').click()
-  if near_dst: wd.getid('ne1').click()
+  if near_org: wd.getid('no1').wait_displayed().click()
+  if near_dst: wd.getid('ne1').wait_displayed().click()
   wd.getid('leave1').clear().send_keys(fmt_date(date))
   wd.getid('PRI-HP').click()
   wd.ckpt()

@@ -278,30 +278,6 @@ def script(wd, cfg):
     record('delta %s' % dat, lambda wd: delta(wd, org, dst, dat, nearby=True))
   return buf
 
-def scrape(wd, cfg):
-  out = StringIO.StringIO()
-  logging.basicConfig()
-  newres = {}
-
-  orgs = cfg.origin.split()
-  dsts = cfg.destination.split()
-  date = dt.date(2012,12,22)
-  defaultports = [(org, dst) for org in orgs for dst in dsts]
-  airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
-  airlines = cfg.websites
-  query_date = date
-
-  for airline in airlines:
-    for org, dst in airline2orgdsts.get(airline, defaultports):
-      res = globals()[airline](wd, org, dst, query_date)
-      if not type(res) is list: res = [(date, res)]
-      for price, date in res:
-        msg = '%s to %s on %s.com: %s $%s ' % (org, dst, airline, date, price)
-        print msg
-        print >> out, msg
-
-  return out
-
 def main(argv = sys.argv):
   default_from = '%s@%s' % (getpass.getuser(), socket.getfqdn())
 
@@ -313,15 +289,6 @@ def main(argv = sys.argv):
       print results to stdout.''')
   p.add_argument('-F', '--mailfrom', default=default_from,
       help='Email address results are sent from. (default: %s)' % default_from)
-  p.add_argument('-f', '--origin',
-      help='Space-separated origin airports.')
-  p.add_argument('-t', '--destination',
-      help='Space-separated destination airports.')
-  p.add_argument('websites', nargs='+',
-      help='''Websites to scrape (aa/united/bing/virginamerica). You can also
-      override the airports searched on particular websites with parenthesized
-      space-separated origin-destination pairs, e.g. 'virginamerica(jfk-sfo
-      jfk-las)'.''')
   cfg = p.parse_args(argv[1:])
 
   cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :10 -screen 0 1600x1200x24'
@@ -335,18 +302,7 @@ def main(argv = sys.argv):
       sys.stdout, sys.stderr = stdout, stderr
       out = script(wd, cfg)
 
-  # TODO: aggregate stats
-
-  #with open(os.path.expanduser('~/.flights.pickle')) as f:
-  #  oldres = pickle.load(f)
-
-  #for airline in airlines:
-  #  (newval, newres), (oldval, oldres) = newres[airline], oldres[airline]
-  #  if newval != oldval and newval <= 180:
-  #    if val <= 180: found = True
-  #    print >> out, org, dst, airline, res
-
-  if not cfg.debug and cfg.mailto:
+  if cfg.mailto:
     mail = MIMEText(out.getvalue())
     mail['From'] = cfg.mailfrom
     mail['To'] = cfg.mailto
@@ -354,6 +310,3 @@ def main(argv = sys.argv):
         (dt.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
     with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
       smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())
-
-  #with open(os.path.expanduser('~/.flights.pickle'), 'w') as f:
-  #  pickle.dump(newres, f)

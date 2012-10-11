@@ -268,8 +268,10 @@ def script(wd, cfg):
         self.wd.save_screenshot('%s presubmit (%s).png' % (label, now))
     res = func(very_rich_driver(wd, cfg.debug))
     wd.save_screenshot('%s postsubmit (%s).png' % (label, now))
-    print '%s: %s' % (label, res)
-    print >> buf, '%s: %s' % (label, res)
+    lines = '\n'.join('  %s $%s' % (dat, prc) for prc, dat in res) \
+        if type(res) is list else res
+    print '%s:\n%s' % (label, lines)
+    print >> buf, '%s:\n%s' % (label, lines)
 
   record('united', lambda wd: united(wd, org, dst, date, nearby=True))
   record('aa', lambda wd: aa(wd, org, dst, date, dist_org=60, dist_dst=30))

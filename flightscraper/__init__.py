@@ -8,8 +8,8 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
-    datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, socket, \
-    subprocess, sys, time
+    datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, \
+    socket, subprocess, sys, time, pprint
 from email.mime.text import MIMEText
 import dateutil.relativedelta as rd
 from parsedatetime import parsedatetime as pdt, parsedatetime_consts as pdc
@@ -243,6 +243,31 @@ def scrshot(name):
   fname = '%s %s.png' % (tstamp, name)
   wd.save_screenshot(fname)
 
+def script(wd, cfg):
+  buf = StringIO.StringIO()
+  now = dt.datetime.now()
+  org, dst, date = 'sfo', 'phl', dt.date(2012,12,21)
+  def record(label, res):
+    print '%s: %s' % (label, res)
+    print >> buf, '%s: %s' % (label, res)
+  record('united', united(wd, org, dst, date, nearby=True))
+  record('aa', aa(wd, org, dst, date, dist_org=60, dist_dst=30))
+  record('virginamerica', virginamerica(wd, org, dst, date))
+  for offset in xrange(-3, 4, 1):
+    dat = date + rd.relativedelta(days=offset)
+    record('bing %s' % dat,
+        bing(wd, org, dst, dat, near_org=True, near_dst=True))
+  record('southwest sfo to phl', southwest(wd, org, dst, date))
+  record('southwest sjc to phl', southwest(wd, 'sjc', dst, date))
+  record('southwest oak to phl', southwest(wd, 'oak', dst, date))
+  for offset in xrange(-3, 4, 1):
+    dat = date + rd.relativedelta(days=offset)
+    record('delta %s' % dat, delta(wd, org, dst, dat, nearby=True))
+  res = list(gen())
+  pprint.pprint(res)
+  pickle.dump((now, res), open(filo, 'w'), 2)
+  return buf
+
 def scrape(wd, cfg):
   out = StringIO.StringIO()
   logging.basicConfig()
@@ -302,7 +327,7 @@ def main(argv = sys.argv):
     sys.stderr = open('/dev/null','w')
     with quitting(rich_driver(webdriver.Chrome())) as wd:
       sys.stdout, sys.stderr = stdout, stderr
-      out = scrape(wd, cfg)
+      out = script(wd, cfg)
 
   # TODO: aggregate stats
 

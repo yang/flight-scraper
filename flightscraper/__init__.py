@@ -114,6 +114,10 @@ class rich_web_elt(object):
   def option(self, val):
     self.elt.find_element_by_xpath('option[@value=%r]' % str(val)).click()
     return self
+  def set(self, value):
+    if self.elt.is_selected() != value:
+      self.elt.click()
+    return self
   def slow_keys(self, keys):
     for k in keys:
       self.send_keys(k)
@@ -144,8 +148,8 @@ def united(wd, org, dst, date, nearby=False):
   wd.getid('ctl00_ContentInfo_Booking1_Origin_txtOrigin').clear().send_keys(org)
   wd.getid('ctl00_ContentInfo_Booking1_Destination_txtDestination').clear().send_keys(dst)
   if nearby:
-    wd.getid('ctl00_ContentInfo_Booking1_Nearbyair_chkFltOpt').click()
-  wd.getid('ctl00_ContentInfo_Booking1_AltDate_chkFltOpt').click()
+    wd.getid('ctl00_ContentInfo_Booking1_Nearbyair_chkFltOpt').set(True)
+  wd.getid('ctl00_ContentInfo_Booking1_AltDate_chkFltOpt').set(True)
   wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_rdoDateFlex').click()
   wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option(fmt_date(month_of(date), True)).click()
   wd.ckpt()
@@ -211,10 +215,10 @@ def bing(wd, org, dst, date, near_org=False, near_dst=False):
   wd.getid('oneWayLabel').click()
   wd.getid('orig1Text').click().clear().send_keys(org).tab()
   wd.getid('dest1Text').click().clear().send_keys(dst).tab()
-  if near_org: wd.getid('no1').wait_displayed().click()
-  if near_dst: wd.getid('ne1').wait_displayed().click()
+  if near_org: wd.getid('no1').wait_displayed().set(True)
+  if near_dst: wd.getid('ne1').wait_displayed().set(True)
   wd.getid('leave1').clear().send_keys(fmt_date(date))
-  wd.getid('PRI-HP').click()
+  wd.getid('PRI-HP').set(False)
   wd.ckpt()
   wd.find_element_by_css_selector('.sbmtBtn').click()
   # Wait for "still searching" to disappear.
@@ -249,7 +253,7 @@ def delta(wd, org, dst, date, nearby=False):
   wd.getid('oneway_link').click()
   wd.getid('departureCity_0').clear().send_keys(org)
   wd.getid('destinationCity_0').clear().send_keys(dst)
-  if nearby: wd.getid('flexAirports').click()
+  if nearby: wd.getid('flexAirports').set(True)
   wd.getid('departureDate_0').clear().send_keys(fmt_date(date))
   wd.ckpt()
   wd.getid('Go').click()

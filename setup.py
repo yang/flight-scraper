@@ -10,6 +10,7 @@ setup(
     '''
     ludibrio>=3.1.0
     selenium>=2.25.0
+    parsedatetime>=0.8.7
     '''.split(),
   entry_points = {
     'console_scripts': 'flightscraper = flightscraper:main'

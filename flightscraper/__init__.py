@@ -12,9 +12,14 @@ import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     subprocess, sys, time
 from email.mime.text import MIMEText
 import dateutil.relativedelta as rd
+from parsedatetime import parsedatetime as pdt, parsedatetime_consts as pdc
+
+date_parser = pdt.Calendar(pdc.Constants())
 
 def month_of(date): return date + rd.relativedelta(day=1)
 def fmt_date(date): return date.strftime('%m/%d/%Y')
+def parse_date(text):
+  return dt.date(*date_parser.parse(text.split(' ', 1)[1])[0][:3])
 
 def retry_if_nexist(f):
   @functools.wraps(f)
@@ -101,6 +106,9 @@ def fullcity(tla):
 
 @retry_if_timeout
 def united(wd, org, dst, date, nearby=False):
+  """
+  Returns list of (best price, day) pairs for month around date.
+  """
   wd.get('http://united.com')
   wd.getid('ctl00_ContentInfo_Booking1_rdoSearchType2').click()
   wd.getid('ctl00_ContentInfo_Booking1_Origin_txtOrigin').clear().send_keys(org)
@@ -114,13 +122,16 @@ def united(wd, org, dst, date, nearby=False):
   def gen():
     for x in wd.find_elements_by_css_selector('.on'):
       date, _, prc = x.text.split('\n')
-      yield toprc(prc), date
-  # TODO not the price for the requested target date
-  return min(gen())[0], min(gen())
+      yield toprc(prc), parse_date(date)
+  return list(gen())
 
-# +/-3d
 @retry_if_timeout
 def aa(wd, org, dst, date, dist_org=0, dist_dst=0):
+  """
+  dist_org and dist_dst are either 0, 30, 60, or 90 (miles).
+
+  Returns list of (best price, day) pairs for +/- 3 days around date.
+  """
   for dist in dist_org, dist_dst:
     if dist not in [None, 0, 30, 60, 90]:
       raise Exception('dist_org/dist_dst must be in [0,30,60,90]')
@@ -135,30 +146,34 @@ def aa(wd, org, dst, date, dist_org=0, dist_dst=0):
   wd.getid('flightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
   wd.getid('flightSearchForm.carrierAll').click()
   wd.getid('flightSearchForm').submit()
-  val = toprc(wd.xpath('//span[@class="highlightSubHeader"]/a/span'))
-  minday = min((toprc(prc), day.text)
-               for prc, day in
-               zip(wd.xpaths('//li[@class="tabNotActive"]/a/span'),
-                   wd.xpaths('//li[@class="tabNotActive"]/a/u')))
-  return val, minday
+  def gen():
+    for x in wd.csss('.tabNotActive, .highlightSubHeader'):
+      date, prc = x.text.split('from')
+      yield toprc(prc), parse_date(date)
+  return list(gen())
 
-# +/-3d
 @retry_if_timeout
 def virginamerica(wd, org, dst, date):
+  """
+  Note that this airline has very limited airport options.
+
+  Returns list of (best price, day) pairs for +/- 3 days around date.
+  """
   wd.get('http://virginamerica.com')
   wd.getid('owRadio').click()
   wd.xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).click()
   wd.xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).click()
   wd.name('flightSearch.depDate.MMDDYYYY').clear().send_keys(fmt_date(date)).tab().delay()
   wd.getid('SearchFlightBt').click()
-  prcs = wd.xpaths('//*[@class="fsCarouselCost"]')
-  minday = min((toprc(prc), day.text)
-               for prc, day in
-               zip(prcs, wd.xpaths('//*[@class="fsCarouselDate"]')))
-  return toprc(prcs[3]), minday
+  return [(toprc(prc), parse_date(day.text))
+      for prc, day in zip(wd.xpaths('//*[@class="fsCarouselCost"]'),
+                          wd.xpaths('//*[@class="fsCarouselDate"]'))]
 
 @retry_if_timeout
 def bing(wd, org, dst, date, near_org=False, near_dst=False):
+  """
+  Returns best price for given date.
+  """
   wd.get('http://bing.com/travel')
   wd.getid('oneWayLabel').click()
   wd.getid('orig1Text').click().clear().send_keys(org).tab()
@@ -174,6 +189,9 @@ def bing(wd, org, dst, date, near_org=False, near_dst=False):
 
 @retry_if_timeout
 def southwest(wd, org, dst, date):
+  """
+  Returns list of (best price, date) pairs for month around date.
+  """
   wd.get('http://www.southwest.com/cgi-bin/lowFareFinderEntry')
   wd.getid('oneWay').click()
   wd.getid('originAirport_displayed').clear().send_keys(org).tab()
@@ -184,12 +202,14 @@ def southwest(wd, org, dst, date):
   def gen():
     for x in wd.csss('.fareAvailableDay'):
       day, prc = x.text.split('\n')
-      yield toprc(prc), '%s %s' % (month, day)
-  # TODO not the price for the requested date
-  return min(gen())[0], min(gen())
+      yield toprc(prc), parse_date('%s %s' % (month, day))
+  return list(gen())
 
 @retry_if_timeout
 def delta(wd, org, dst, date, nearby=False):
+  """
+  Returns best price for given date.
+  """
   wd.get('http://www.delta.com/booking/searchFlights.do')
   wd.getid('oneway_link').click()
   wd.getid('departureCity_0').clear().send_keys(org)
@@ -234,17 +254,18 @@ def scrape(wd, cfg):
   defaultports = [(org, dst) for org in orgs for dst in dsts]
   airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
   airlines = cfg.websites
+  query_date = date
 
   for airline in airlines:
     for org, dst in airline2orgdsts.get(airline, defaultports):
-      res = globals()[airline](wd, org, dst, date)
-      val = res[0] if type(res) is tuple else res
-      newres[airline] = val, res
-      msg = '%s to %s on %s.com: %s' % (org, dst, airline, res)
-      print msg
-      print >> out, msg
+      res = globals()[airline](wd, org, dst, query_date)
+      if not type(res) is list: res = [(date, res)]
+      for price, date in res:
+        msg = '%s to %s on %s.com: %s $%s ' % (org, dst, airline, date, price)
+        print msg
+        print >> out, msg
       if cfg.screenshots:
-        scrshot('%s to %s on %s.com - %s' % (org, dst, airline, val))
+        scrshot('%s to %s on %s.com' % (org, dst, airline))
 
   return out
 

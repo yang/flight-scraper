@@ -205,7 +205,7 @@ def virginamerica(wd, org, dst, date):
 @retry_if_timeout
 def bing(wd, org, dst, date, near_org=False, near_dst=False):
   """
-  Returns best price for given date.
+  Returns [(best price, date)].
   """
   wd.get('http://bing.com/travel')
   wd.getid('oneWayLabel').click()
@@ -219,7 +219,7 @@ def bing(wd, org, dst, date, near_org=False, near_dst=False):
   wd.find_element_by_css_selector('.sbmtBtn').click()
   # Wait for "still searching" to disappear.
   while wd.getid('searching').is_displayed(): time.sleep(1)
-  return toprc(wd.xpath('//span[@class="price"]'))
+  return [(toprc(wd.xpath('//span[@class="price"]')), date)]
 
 @retry_if_timeout
 def southwest(wd, org, dst, date):
@@ -243,7 +243,7 @@ def southwest(wd, org, dst, date):
 @retry_if_timeout
 def delta(wd, org, dst, date, nearby=False):
   """
-  Returns best price for given date.
+  Returns [(best price, date)].
   """
   wd.get('http://www.delta.com/booking/searchFlights.do')
   wd.getid('oneway_link').click()
@@ -253,7 +253,7 @@ def delta(wd, org, dst, date, nearby=False):
   wd.getid('departureDate_0').clear().send_keys(fmt_date(date))
   wd.ckpt()
   wd.getid('Go').click()
-  return toprc(wd.css('.lowest .fares').text)
+  return [(toprc(wd.css('.lowest .fares').text), date)]
 
 @retry_if_timeout
 def farecmp():

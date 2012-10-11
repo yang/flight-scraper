@@ -11,7 +11,7 @@ import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, \
     socket, subprocess, sys, time, pprint
 from email.mime.text import MIMEText
-import dateutil.relativedelta as rd
+import dateutil.relativedelta as rd, ipdb
 from parsedatetime import parsedatetime as pdt, parsedatetime_consts as pdc
 
 date_parser = pdt.Calendar(pdc.Constants())
@@ -37,14 +37,20 @@ class timeout_exception(Exception): pass
 
 def retry_if_timeout(f):
   @functools.wraps(f)
-  def wrapper(*args, **kw):
+  def wrapper(wd, *args, **kw):
     while 1:
-      try: return f(*args, **kw)
+      try: return f(wd, *args, **kw)
       except timeout_exception: time.sleep(1)
+      except Exception as ex:
+        if wd.debug:
+          ipdb.post_mortem(sys.exc_info()[2])
+        raise
   return wrapper
 
 class rich_driver(object):
-  def __init__(self, wd): self.wd = wd
+  def __init__(self, wd, debug):
+    self.wd = wd
+    self.debug = debug
   def __getattr__(self, attr): return getattr(self.wd, attr)
   def ckpt(self):
     """Callback from an airline function after filling but before submitting
@@ -258,7 +264,7 @@ def script(wd, cfg):
     class very_rich_driver(rich_driver):
       def ckpt(self):
         self.wd.save_screenshot('%s presubmit (%s).png' % (label, now))
-    res = func(very_rich_driver(wd))
+    res = func(very_rich_driver(wd, cfg.debug))
     wd.save_screenshot('%s postsubmit (%s).png' % (label, now))
     print '%s: %s' % (label, res)
     print >> buf, '%s: %s' % (label, res)

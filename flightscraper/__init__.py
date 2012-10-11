@@ -289,10 +289,29 @@ def script(wd, cfg):
         self.wd.save_screenshot('%s presubmit (%s).png' % (label, now))
     res = func(very_rich_driver(wd, cfg.debug))
     wd.save_screenshot('%s postsubmit (%s).png' % (label, now))
-    lines = '\n'.join('  %s $%s' % (dat, prc) for prc, dat in res) \
-        if type(res) is list else res
-    print '%s:\n%s' % (label, lines)
-    print >> buf, '%s:\n%s' % (label, lines)
+
+    date2prc = dict((dat,prc) for prc,dat in res)
+    pprint.pprint(res)
+    cal = calendar.Calendar(6)
+    def gen_vals():
+      for dow in cal.iterweekdays():
+        yield '%6s' % calendar.day_abbr[dow]
+      yield '\n'
+      for day, dow in cal.itermonthdays2(*date.timetuple()[:2]):
+        val = date2prc.get(date + rd.relativedelta(day=day), '') if day > 0 \
+              else ''
+        if val != '': val = '$%s' % val
+        yield '%6s%s' % (val, '\n' if dow == 5 else '')
+    def gen_days():
+      for day, dow in cal.itermonthdays2(*date.timetuple()[:2]):
+        yield '%6s%s' % ('' if day == 0 else day, '\n' if dow == 5 else '')
+    vals = ''.join(gen_vals()).split('\n')
+    days = ''.join(gen_days()).split('\n')
+    msg = '\n'.join(line for lines in zip(vals, days) for line in lines)
+    print label
+    print msg
+    print >> buf, label
+    print >> buf, msg
 
   record('united', lambda wd: united(wd, org, dst, date, nearby=True))
   record('aa', lambda wd: aa(wd, org, dst, date, dist_org=60, dist_dst=30))

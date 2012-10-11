@@ -46,6 +46,11 @@ def retry_if_timeout(f):
 class rich_driver(object):
   def __init__(self, wd): self.wd = wd
   def __getattr__(self, attr): return getattr(self.wd, attr)
+  def ckpt(self):
+    """Callback from an airline function after filling but before submitting
+    the form.  Useful if you want to take a screenshot, make some edits,
+    etc."""
+    pass
   @retry_if_nexist
   def xpath(self, x): return rich_web_elt(self.wd.find_element_by_xpath(x))
   @retry_if_nexist
@@ -118,6 +123,7 @@ def united(wd, org, dst, date, nearby=False):
   wd.getid('ctl00_ContentInfo_Booking1_AltDate_chkFltOpt').click()
   wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_rdoDateFlex').click()
   wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option(fmt_date(month_of(date))).click()
+  wd.ckpt()
   wd.getid('ctl00_ContentInfo_Booking1_btnSearchFlight').click()
   def gen():
     for x in wd.find_elements_by_css_selector('.on'):
@@ -145,6 +151,7 @@ def aa(wd, org, dst, date, dist_org=0, dist_dst=0):
   wd.getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(date.day)
   wd.getid('flightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
   wd.getid('flightSearchForm.carrierAll').click()
+  wd.ckpt()
   wd.getid('flightSearchForm').submit()
   def gen():
     for x in wd.csss('.tabNotActive, .highlightSubHeader'):
@@ -164,6 +171,7 @@ def virginamerica(wd, org, dst, date):
   wd.xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).click()
   wd.xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).click()
   wd.name('flightSearch.depDate.MMDDYYYY').clear().send_keys(fmt_date(date)).tab().delay()
+  wd.ckpt()
   wd.getid('SearchFlightBt').click()
   return [(toprc(prc), parse_date(day.text))
       for prc, day in zip(wd.xpaths('//*[@class="fsCarouselCost"]'),
@@ -182,6 +190,7 @@ def bing(wd, org, dst, date, near_org=False, near_dst=False):
   if near_dst: wd.getid('ne1').click()
   wd.getid('leave1').clear().send_keys(fmt_date(date))
   wd.getid('PRI-HP').click()
+  wd.ckpt()
   wd.find_element_by_css_selector('.sbmtBtn').click()
   # Wait for "still searching" to disappear.
   while wd.getid('searching').is_displayed(): time.sleep(1)
@@ -197,6 +206,7 @@ def southwest(wd, org, dst, date):
   wd.getid('originAirport_displayed').clear().send_keys(org).tab()
   wd.getid('destinationAirport_displayed').clear().send_keys(dst).tab()
   wd.getid('outboundDate').option(fmt_date(month_of(date)))
+  wd.ckpt()
   wd.getid('submitButton').click()
   month = wd.css('.carouselTodaySodaIneligible .carouselBody').text
   def gen():
@@ -216,6 +226,7 @@ def delta(wd, org, dst, date, nearby=False):
   wd.getid('destinationCity_0').clear().send_keys(dst)
   if nearby: wd.getid('flexAirports').click()
   wd.getid('departureDate_0').clear().send_keys(fmt_date(date))
+  wd.ckpt()
   wd.getid('Go').click()
   return toprc(wd.css('.lowest .fares').text)
 
@@ -238,34 +249,33 @@ def subproc(*args, **kwargs):
   try: yield p
   finally: p.terminate(); p.wait()
 
-def scrshot(name):
-  tstamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
-  fname = '%s %s.png' % (tstamp, name)
-  wd.save_screenshot(fname)
-
 def script(wd, cfg):
   buf = StringIO.StringIO()
   now = dt.datetime.now()
   org, dst, date = 'sfo', 'phl', dt.date(2012,12,21)
-  def record(label, res):
+
+  def record(label, func):
+    class very_rich_driver(rich_driver):
+      def ckpt(self):
+        self.wd.save_screenshot('%s presubmit (%s).png' % (label, now))
+    res = func(very_rich_driver(wd))
+    wd.save_screenshot('%s postsubmit (%s).png' % (label, now))
     print '%s: %s' % (label, res)
     print >> buf, '%s: %s' % (label, res)
-  record('united', united(wd, org, dst, date, nearby=True))
-  record('aa', aa(wd, org, dst, date, dist_org=60, dist_dst=30))
-  record('virginamerica', virginamerica(wd, org, dst, date))
+
+  record('united', lambda wd: united(wd, org, dst, date, nearby=True))
+  record('aa', lambda wd: aa(wd, org, dst, date, dist_org=60, dist_dst=30))
+  record('virginamerica', lambda wd: virginamerica(wd, org, dst, date))
   for offset in xrange(-3, 4, 1):
     dat = date + rd.relativedelta(days=offset)
     record('bing %s' % dat,
-        bing(wd, org, dst, dat, near_org=True, near_dst=True))
-  record('southwest sfo to phl', southwest(wd, org, dst, date))
-  record('southwest sjc to phl', southwest(wd, 'sjc', dst, date))
-  record('southwest oak to phl', southwest(wd, 'oak', dst, date))
+        lambda wd: bing(wd, org, dst, dat, near_org=True, near_dst=True))
+  record('southwest sfo to phl', lambda wd: southwest(wd, org, dst, date))
+  record('southwest sjc to phl', lambda wd: southwest(wd, 'sjc', dst, date))
+  record('southwest oak to phl', lambda wd: southwest(wd, 'oak', dst, date))
   for offset in xrange(-3, 4, 1):
     dat = date + rd.relativedelta(days=offset)
-    record('delta %s' % dat, delta(wd, org, dst, dat, nearby=True))
-  res = list(gen())
-  pprint.pprint(res)
-  pickle.dump((now, res), open(filo, 'w'), 2)
+    record('delta %s' % dat, lambda wd: delta(wd, org, dst, dat, nearby=True))
   return buf
 
 def scrape(wd, cfg):
@@ -289,8 +299,6 @@ def scrape(wd, cfg):
         msg = '%s to %s on %s.com: %s $%s ' % (org, dst, airline, date, price)
         print msg
         print >> out, msg
-      if cfg.screenshots:
-        scrshot('%s to %s on %s.com' % (org, dst, airline))
 
   return out
 
@@ -305,8 +313,6 @@ def main(argv = sys.argv):
       print results to stdout.''')
   p.add_argument('-F', '--mailfrom', default=default_from,
       help='Email address results are sent from. (default: %s)' % default_from)
-  p.add_argument('-s', '--screenshots',
-      help='Take screenshots of every final page.')
   p.add_argument('-f', '--origin',
       help='Space-separated origin airports.')
   p.add_argument('-t', '--destination',
@@ -325,7 +331,7 @@ def main(argv = sys.argv):
     stdout, stderr = sys.stdout, sys.stderr
     sys.stdout = open('/dev/null','w')
     sys.stderr = open('/dev/null','w')
-    with quitting(rich_driver(webdriver.Chrome())) as wd:
+    with quitting(webdriver.Chrome()) as wd:
       sys.stdout, sys.stderr = stdout, stderr
       out = script(wd, cfg)
 

@@ -8,9 +8,13 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
-    datetime, functools, getpass, logging, ludibrio, os, re, smtplib, socket, \
+    datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, socket, \
     subprocess, sys, time
 from email.mime.text import MIMEText
+import dateutil.relativedelta as rd
+
+def month_of(date): return date + rd.relativedelta(day=1)
+def fmt_date(date): return date.strftime('%m/%d/%Y')
 
 def retry_if_nexist(f):
   @functools.wraps(f)
@@ -96,7 +100,7 @@ def fullcity(tla):
       sjc = 'San Jose')[tla.lower()]
 
 @retry_if_timeout
-def united(wd, org, dst, nearby=False):
+def united(wd, org, dst, date, nearby=False):
   wd.get('http://united.com')
   wd.getid('ctl00_ContentInfo_Booking1_rdoSearchType2').click()
   wd.getid('ctl00_ContentInfo_Booking1_Origin_txtOrigin').clear().send_keys(org)
@@ -105,7 +109,7 @@ def united(wd, org, dst, nearby=False):
     wd.getid('ctl00_ContentInfo_Booking1_Nearbyair_chkFltOpt').click()
   wd.getid('ctl00_ContentInfo_Booking1_AltDate_chkFltOpt').click()
   wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_rdoDateFlex').click()
-  wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option('12/1/2012').click()
+  wd.getid('ctl00_ContentInfo_Booking1_DepDateTime_MonthList1_cboMonth').option(fmt_date(month_of(date))).click()
   wd.getid('ctl00_ContentInfo_Booking1_btnSearchFlight').click()
   def gen():
     for x in wd.find_elements_by_css_selector('.on'):
@@ -116,7 +120,7 @@ def united(wd, org, dst, nearby=False):
 
 # +/-3d
 @retry_if_timeout
-def aa(wd, org, dst, dist_org=0, dist_dst=0):
+def aa(wd, org, dst, date, dist_org=0, dist_dst=0):
   for dist in dist_org, dist_dst:
     if dist not in [None, 0, 30, 60, 90]:
       raise Exception('dist_org/dist_dst must be in [0,30,60,90]')
@@ -126,8 +130,8 @@ def aa(wd, org, dst, dist_org=0, dist_dst=0):
   wd.getid('flightSearchForm.originAlternateAirportDistance').option(dist_org)
   wd.getid('flightSearchForm.destinationAlternateAirportDistance').option(dist_dst)
   wd.getid('flightSearchForm.searchType.matrix').click()
-  wd.getid('flightSearchForm.flightParams.flightDateParams.travelMonth').option(12)
-  wd.getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(31)
+  wd.getid('flightSearchForm.flightParams.flightDateParams.travelMonth').option(date.month)
+  wd.getid('flightSearchForm.flightParams.flightDateParams.travelDay').option(date.day)
   wd.getid('flightSearchForm.flightParams.flightDateParams.searchTime').option(120001)
   wd.getid('flightSearchForm.carrierAll').click()
   wd.getid('flightSearchForm').submit()
@@ -140,12 +144,12 @@ def aa(wd, org, dst, dist_org=0, dist_dst=0):
 
 # +/-3d
 @retry_if_timeout
-def virginamerica(wd, org, dst):
+def virginamerica(wd, org, dst, date):
   wd.get('http://virginamerica.com')
   wd.getid('owRadio').click()
   wd.xpath('//select[@name="flightSearch.origin"]/option[@value=%r]' % org.upper()).click()
   wd.xpath('//select[@name="flightSearch.destination"]/option[@value=%r]' % dst.upper()).click()
-  wd.name('flightSearch.depDate.MMDDYYYY').clear().send_keys('12/21/2012').tab().delay()
+  wd.name('flightSearch.depDate.MMDDYYYY').clear().send_keys(fmt_date(date)).tab().delay()
   wd.getid('SearchFlightBt').click()
   prcs = wd.xpaths('//*[@class="fsCarouselCost"]')
   minday = min((toprc(prc), day.text)
@@ -154,14 +158,14 @@ def virginamerica(wd, org, dst):
   return toprc(prcs[3]), minday
 
 @retry_if_timeout
-def bing(wd, org, dst, near_org=False, near_dst=False):
+def bing(wd, org, dst, date, near_org=False, near_dst=False):
   wd.get('http://bing.com/travel')
   wd.getid('oneWayLabel').click()
   wd.getid('orig1Text').click().clear().send_keys(org).tab()
   wd.getid('dest1Text').click().clear().send_keys(dst).tab()
   if near_org: wd.getid('no1').click()
   if near_dst: wd.getid('ne1').click()
-  wd.getid('leave1').clear().send_keys('12/21/2012')
+  wd.getid('leave1').clear().send_keys(fmt_date(date))
   wd.getid('PRI-HP').click()
   wd.find_element_by_css_selector('.sbmtBtn').click()
   # Wait for "still searching" to disappear.
@@ -169,12 +173,12 @@ def bing(wd, org, dst, near_org=False, near_dst=False):
   return toprc(wd.xpath('//span[@class="price"]'))
 
 @retry_if_timeout
-def southwest(wd, org, dst):
+def southwest(wd, org, dst, date):
   wd.get('http://www.southwest.com/cgi-bin/lowFareFinderEntry')
   wd.getid('oneWay').click()
   wd.getid('originAirport_displayed').clear().send_keys(org).tab()
   wd.getid('destinationAirport_displayed').clear().send_keys(dst).tab()
-  wd.getid('outboundDate').option('12/01/2012')
+  wd.getid('outboundDate').option(fmt_date(month_of(date)))
   wd.getid('submitButton').click()
   month = wd.css('.carouselTodaySodaIneligible .carouselBody').text
   def gen():
@@ -185,13 +189,13 @@ def southwest(wd, org, dst):
   return min(gen())[0], min(gen())
 
 @retry_if_timeout
-def delta(wd, org, dst, nearby=False):
+def delta(wd, org, dst, date, nearby=False):
   wd.get('http://www.delta.com/booking/searchFlights.do')
   wd.getid('oneway_link').click()
   wd.getid('departureCity_0').clear().send_keys(org)
   wd.getid('destinationCity_0').clear().send_keys(dst)
   if nearby: wd.getid('flexAirports').click()
-  wd.getid('departureDate_0').clear().send_keys('12/21/2012')
+  wd.getid('departureDate_0').clear().send_keys(fmt_date(date))
   wd.getid('Go').click()
   return toprc(wd.css('.lowest .fares').text)
 
@@ -226,13 +230,14 @@ def scrape(wd, cfg):
 
   orgs = cfg.origin.split()
   dsts = cfg.destination.split()
+  date = dt.date(2012,12,22)
   defaultports = [(org, dst) for org in orgs for dst in dsts]
   airline2orgdsts = dict(virginamerica = [('jfk','sfo')])
   airlines = cfg.websites
 
   for airline in airlines:
     for org, dst in airline2orgdsts.get(airline, defaultports):
-      res = globals()[airline](wd, org, dst)
+      res = globals()[airline](wd, org, dst, date)
       val = res[0] if type(res) is tuple else res
       newres[airline] = val, res
       msg = '%s to %s on %s.com: %s' % (org, dst, airline, res)
@@ -294,7 +299,7 @@ def main(argv = sys.argv):
     mail['From'] = cfg.mailfrom
     mail['To'] = cfg.mailto
     mail['Subject'] = 'Flight alert for %s' % \
-        (datetime.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
+        (dt.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
     with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
       smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())
 

@@ -9,7 +9,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, \
-    socket, subprocess, sys, time, pprint
+    socket, subprocess, sys, time, pprint, calendar
 from email.mime.text import MIMEText
 import dateutil.relativedelta as rd, ipdb
 from parsedatetime import parsedatetime as pdt, parsedatetime_consts as pdc
@@ -20,8 +20,14 @@ def month_of(date): return date + rd.relativedelta(day=1)
 def fmt_date(date, short=False):
   return date.strftime('%m/%d/%Y') if not short else \
       '%s/%s/%s' % (date.month, date.day, date.year)
+day_names = set.union(set([
+  x.lower() for xs in calendar.day_name,calendar.day_abbr for x in xs]))
+space = re.compile(r'\s+')
 def parse_date(text):
-  return dt.date(*date_parser.parse(text.split(' ', 1)[1])[0][:3])
+  text = text.strip()
+  if space.split(text, 1)[0].lower() in day_names:
+    text = space.split(text, 1)[1]
+  return dt.date(*date_parser.parse(text)[0][:3])
 
 def retry_if_nexist(f):
   @functools.wraps(f)

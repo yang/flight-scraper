@@ -45,6 +45,10 @@ class rich_driver(object):
   def getid(self, x): return rich_web_elt(self.wd.find_element_by_id(x))
   @retry_if_nexist
   def name(self, x): return rich_web_elt(self.xpath('//*[@name=%r]' % (x,)))
+  @retry_if_nexist
+  def css(self, x): return rich_web_elt(self.wd.find_element_by_css_selector(x))
+  @retry_if_nexist
+  def csss(self, x): return map(rich_web_elt, self.wd.find_elements_by_css_selector(x))
 
 price_re = re.compile(r'\d+')
 def toprc(x):
@@ -108,7 +112,7 @@ def united(wd, org, dst, nearby=False):
       date, _, prc = x.text.split('\n')
       yield toprc(prc), date
   # TODO not the price for the requested target date
-  return toprc(min(b for a,b in gen())), min(gen())
+  return min(gen())[0], min(gen())
 
 # +/-3d
 @retry_if_timeout
@@ -163,6 +167,33 @@ def bing(wd, org, dst, near_org=False, near_dst=False):
   # Wait for "still searching" to disappear.
   while wd.getid('searching').is_displayed(): time.sleep(1)
   return toprc(wd.xpath('//span[@class="price"]'))
+
+@retry_if_timeout
+def southwest(wd, org, dst):
+  wd.get('http://www.southwest.com/cgi-bin/lowFareFinderEntry')
+  wd.getid('oneWay').click()
+  wd.getid('originAirport_displayed').clear().send_keys(org).tab()
+  wd.getid('destinationAirport_displayed').clear().send_keys(dst).tab()
+  wd.getid('outboundDate').option('12/01/2012')
+  wd.getid('submitButton').click()
+  month = wd.css('.carouselTodaySodaIneligible .carouselBody').text
+  def gen():
+    for x in wd.csss('.fareAvailableDay'):
+      day, prc = x.text.split('\n')
+      yield toprc(prc), '%s %s' % (month, day)
+  # TODO not the price for the requested date
+  return min(gen())[0], min(gen())
+
+@retry_if_timeout
+def delta(wd, org, dst, nearby=False):
+  wd.get('http://www.delta.com/booking/searchFlights.do')
+  wd.getid('oneway_link').click()
+  wd.getid('departureCity_0').clear().send_keys(org)
+  wd.getid('destinationCity_0').clear().send_keys(dst)
+  if nearby: wd.getid('flexAirports').click()
+  wd.getid('departureDate_0').clear().send_keys('12/21/2012')
+  wd.getid('Go').click()
+  return toprc(wd.css('.lowest .fares').text)
 
 @retry_if_timeout
 def farecmp():

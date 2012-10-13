@@ -367,10 +367,6 @@ def script(wd, cfg):
   print text_report
 
   # web report
-  rows = []
-  for day,dow in cal.itermonthdays2(*date.timetuple()[:2]):
-    if dow == 6: rows.append([])
-    rows[-1].append((day,dow))
   labels = sorted(set(r.label for res in date2res.itervalues() for r in res))
   tmpl = '''
 !!! 5
@@ -387,9 +383,9 @@ html(lang='en')
           for dow in cal.iterweekdays()
             th= calendar.day_abbr[dow]
       tbody
-        for row in rows
+        for week in cal.monthdays2calendar(*date.timetuple()[:2])
           tr
-            for day, dow in row
+            for day, dow in week
               td
                 if day > 0
                   .day-number= day

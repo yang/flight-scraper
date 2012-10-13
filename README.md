@@ -30,24 +30,11 @@ Install flight-scraper:
 Usage
 -----
 
-To see all the command-line options:
+To use the program for yourself, for now you'll just have to edit the program,
+namely the `gen()` function inside the `script()` function.  A query processor
+that is flexible enough to accommodate a good variety of possible requests and
+understands how to dispatch this meta-query by quering each of the different
+airlines is beyond the scope of the current code.
 
-    flightscraper --help
-
-For example, to search for all flights from EWR/PHL to OAK/SFO/SJC on
-AA/United/Bing/Virgin (but where Virgin only searches from JFK to SFO, since it
-has limited routes) and email the results to Jan and Jim (addressed from
-flights@):
-
-    flightscraper -f 'ewr phl' -t 'oak sfo sjc' \
-      -F flights@foo.com -T 'jan@foo.com, jim@foo.com' \
-      aa united bing 'virginamerica(jfk-sfo)'
-
-With no `-T`, flightscraper just prints the results to stdout.
-
-Trends
-------
-
-This hasn't been integrated into the flightscraper command, but there's some
-simple code in `plot.py` to, given an mbox file of emails from flightscraper,
-generate a CSV that can be plotted in [your favorite spreadsheet app].
+The program aggregates the results of the queries into an HTML report, then
+sends an email summary which links to the report (specify a --url-base).

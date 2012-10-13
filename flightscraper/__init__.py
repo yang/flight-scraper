@@ -26,6 +26,7 @@ date_parser = pdt.Calendar(pdc.Constants())
 now = dt.datetime.now()
 
 def month_of(date): return date + rd.relativedelta(day=1)
+def fmt_time(time): return time.strftime('%a %Y-%m-%d %I:%M %p')
 def fmt_date(date, short=False):
   return date.strftime('%m/%d/%Y') if not short else \
       '%s/%s/%s' % (date.month, date.day, date.year)
@@ -375,11 +376,11 @@ def script(wd, cfg):
 !!! 5
 html(lang='en')
   head
-    title Flight Scraper Results for #{now}
+    title Flight Scraper Results for #{fmt_time(now)}
     link(href='//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/css/bootstrap-combined.min.css', rel='stylesheet')
     link(href='../main.css', rel='stylesheet')
   body
-    h1 Flight Scraper Results for #{now}
+    h1 Flight Scraper Results for #{fmt_time(now)}
     table.table.table-bordered
       thead
         tr
@@ -451,7 +452,7 @@ def main(argv = sys.argv):
       help='Test email reports by using fake data instead of actually scraping.')
   p.add_argument('-u', '--urlbase', default='http://yz.mit.edu/flights',
       help='Base URL (for the link at the bottom of text report)')
-  p.add_argument('-o', '--outdir', default=str(now),
+  p.add_argument('-o', '--outdir', default=fmt_time(now),
       help='Output directory (defaults to current time)')
   p.add_argument('-T', '--mailto',
       help='''Email addresses where results should be sent. Without this, just
@@ -480,7 +481,7 @@ def main(argv = sys.argv):
     mail = MIMEText(out)
     mail['From'] = cfg.mailfrom
     mail['To'] = cfg.mailto
-    mail['Subject'] = 'Flight alert for %s' % \
-        (dt.datetime.now().strftime('%a %Y-%m-%d %I:%M %p'),)
+    mail['Subject'] = 'Flight Scraper Results for %s' % \
+        (fmt_time(now),)
     with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
       smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())

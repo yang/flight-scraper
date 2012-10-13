@@ -302,11 +302,6 @@ def script(wd, cfg):
     finally: wd.save_screenshot(post_path(label))
 
   def gen():
-    yield 'southwest sfo to phl', 'southwest sfo to phl', [(249, date)]
-    yield 'southwest sjc to phl', 'southwest sjc to phl', [(229, date)]
-    yield 'united', 'united', [(229, date+rd.relativedelta(days=0)),
-                               (229, date+rd.relativedelta(days=1))]
-    return
     yield 'united', 'united', wrap(
         lambda wd: united(wd, org, dst, date, nearby=True))
     yield 'aa', 'aa', wrap(
@@ -327,6 +322,13 @@ def script(wd, cfg):
       dat = date + rd.relativedelta(days=offset)
       yield 'delta', 'delta %s' % dat, wrap(
           lambda wd: delta(wd, org, dst, dat, nearby=True))
+
+  if cfg.test:
+    def gen():
+      yield 'southwest sfo to phl', 'southwest sfo to phl', [(249, date)]
+      yield 'southwest sjc to phl', 'southwest sjc to phl', [(229, date)]
+      yield 'united', 'united', [(229, date+rd.relativedelta(days=0)),
+                                 (229, date+rd.relativedelta(days=1))]
 
   # combine by date
   resinfo = collections.namedtuple('resinfo', 'prc group label')
@@ -440,6 +442,8 @@ def main(argv = sys.argv):
   p = argparse.ArgumentParser(description=__doc__)
   p.add_argument('-d', '--debug', action='store_true',
       help='Run browser directly, without Xvfb.')
+  p.add_argument('-t', '--test', action='store_true',
+      help='Test email reports by using fake data instead of actually scraping.')
   p.add_argument('-T', '--mailto',
       help='''Email addresses where results should be sent. Without this, just
       print results to stdout.''')

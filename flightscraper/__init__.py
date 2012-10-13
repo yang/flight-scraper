@@ -13,7 +13,7 @@ import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, \
     socket, subprocess, sys, time, pprint, calendar, collections, urllib
 from email.mime.text import MIMEText
-import dateutil.relativedelta as rd, ipdb, pyjade, pyjade.ext.html
+import dateutil.relativedelta as rd, ipdb, pyjade, pyjade.ext.html, path
 from parsedatetime import parsedatetime as pdt, parsedatetime_consts as pdc
 
 class html_compiler(pyjade.ext.html.HTMLCompiler):
@@ -23,6 +23,7 @@ class html_compiler(pyjade.ext.html.HTMLCompiler):
     pyjade.ext.html.HTMLCompiler.visitCode(self, code)
 
 date_parser = pdt.Calendar(pdc.Constants())
+now = dt.datetime.now()
 
 def month_of(date): return date + rd.relativedelta(day=1)
 def fmt_date(date, short=False):
@@ -287,19 +288,19 @@ def subproc(*args, **kwargs):
   finally: p.terminate(); p.wait()
 
 def script(wd, cfg):
-  now = dt.datetime.now()
   org, dst, date = 'sfo', 'phl', dt.date(2012,12,21)
   cal = calendar.Calendar(6)
 
-  html_path = 'report %s.html' % (now,)
-  def pre_path(label): return '%s presubmit (%s).png' % (label, now)
-  def post_path(label): return '%s postsubmit (%s).png' % (label, now)
+  html_path = 'results.html'
+  report_url = cfg.urlbase / urllib.quote(cfg.outdir) / html_path
+  def pre_path(label): return '%s presubmit.png' % (label)
+  def post_path(label): return '%s postsubmit.png' % (label)
   def wrap(label, func):
     class very_rich_driver(rich_driver):
       def ckpt(self):
-        self.wd.save_screenshot(pre_path(label))
+        self.wd.save_screenshot(cfg.outdir / pre_path(label))
     try: return label, func(very_rich_driver(wd, cfg.debug))
-    finally: wd.save_screenshot(post_path(label))
+    finally: wd.save_screenshot(cfg.outdir / post_path(label))
 
   def gen():
     yield 'united', wrap('united',
@@ -360,8 +361,8 @@ def script(wd, cfg):
   text_report = '''
 %s
 
-<https://yz.mit.edu/flights/%s>
-'''.strip() % (text_report, urllib.quote_plus(html_path))
+<%s>
+'''.strip() % (text_report, cfg.urlbase / urllib.quote_plus(cfg.outdir / html_path))
   print text_report
 
   # web report
@@ -376,7 +377,7 @@ html(lang='en')
   head
     title Flight Scraper Results for #{now}
     link(href='//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/css/bootstrap-combined.min.css', rel='stylesheet')
-    link(href='main.css', rel='stylesheet')
+    link(href='../main.css', rel='stylesheet')
   body
     h1 Flight Scraper Results for #{now}
     table.table.table-bordered
@@ -435,7 +436,7 @@ html(lang='en')
   env.update(locals())
   with pyjade.ext.html.local_context_manager(compiler, env):
     html = compiler.compile()
-  with open(html_path, 'w') as f:
+  with open(cfg.outdir / html_path, 'w') as f:
     f.write(html)
 
   return text_report, raw_res
@@ -448,12 +449,19 @@ def main(argv = sys.argv):
       help='Run browser directly, without Xvfb.')
   p.add_argument('-t', '--test', action='store_true',
       help='Test email reports by using fake data instead of actually scraping.')
+  p.add_argument('-u', '--urlbase', default='http://yz.mit.edu/flights',
+      help='Base URL (for the link at the bottom of text report)')
+  p.add_argument('-o', '--outdir', default=str(now),
+      help='Output directory (defaults to current time)')
   p.add_argument('-T', '--mailto',
       help='''Email addresses where results should be sent. Without this, just
       print results to stdout.''')
   p.add_argument('-F', '--mailfrom', default=default_from,
       help='Email address results are sent from. (default: %s)' % default_from)
   cfg = p.parse_args(argv[1:])
+  cfg.outdir = path.path(cfg.outdir)
+  cfg.urlbase = path.path(cfg.urlbase)
+  cfg.outdir.mkdir_p()
 
   cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :10 -screen 0 1600x1200x24'
   with subproc(cmd.split()) as xvfb:
@@ -466,7 +474,7 @@ def main(argv = sys.argv):
       sys.stdout, sys.stderr = stdout, stderr
       out, raw_res = script(wd, cfg)
 
-  with open('raw results %s.pickle', 'w') as f: pickle.dump(raw_res, f, 2)
+  with open(cfg.outdir / 'results.pickle', 'w') as f: pickle.dump(raw_res, f, 2)
 
   if cfg.mailto:
     mail = MIMEText(out)

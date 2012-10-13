@@ -12,7 +12,7 @@ from selenium.common.exceptions import NoSuchElementException
 import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, \
     socket, subprocess, sys, time, pprint, calendar, collections, urllib, \
-    itertools as itr
+    itertools as itr, traceback
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import dateutil.relativedelta as rd, ipdb, pyjade, pyjade.ext.html, path
@@ -71,13 +71,15 @@ class timeout_exception(Exception): pass
 def retry_if_timeout(f):
   @functools.wraps(f)
   def wrapper(wd, *args, **kw):
-    while 1:
+    for trial in xrange(3):
       try: return f(wd, *args, **kw)
-      except timeout_exception: time.sleep(1)
+      except timeout_exception:
+        if trial == 2: raise
+        time.sleep(1)
       except Exception as ex:
-        if wd.debug:
-          ipdb.post_mortem(sys.exc_info()[2])
-        raise
+        if wd.debug: ipdb.post_mortem(sys.exc_info()[2])
+        if trial < 2: print traceback.format_exc()
+        else: raise
   return wrapper
 
 class rich_driver(object):

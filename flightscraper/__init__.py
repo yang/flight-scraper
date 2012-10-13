@@ -11,7 +11,8 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, \
-    socket, subprocess, sys, time, pprint, calendar, collections, urllib
+    socket, subprocess, sys, time, pprint, calendar, collections, urllib, \
+    itertools as itr
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import dateutil.relativedelta as rd, ipdb, pyjade, pyjade.ext.html, path
@@ -491,9 +492,14 @@ def main(argv = sys.argv):
   cfg.urlbase = path.path(cfg.urlbase)
   cfg.outdir.mkdir_p()
 
-  cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :10 -screen 0 1600x1200x24'
+  # find unused display; note TOCTTOU
+  for display in itr.count():
+    if not path.path('/tmp/.X11-unix/X%s' % display).exists():
+      break
+
+  cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :%s -screen 0 1600x1200x24' % display
   with subproc(cmd.split()) as xvfb:
-    if not cfg.debug: os.environ['DISPLAY'] = ':10'
+    if not cfg.debug: os.environ['DISPLAY'] = ':%s' % display
     # This silencing isn't working
     stdout, stderr = sys.stdout, sys.stderr
     sys.stdout = open('/dev/null','w')

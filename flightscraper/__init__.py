@@ -287,7 +287,7 @@ def delta(wd, org, dst, date, nearby=False):
   wd.getid('departureDate_0').clear().send_keys(fmt_date(date))
   wd.ckpt()
   wd.getid('Go').click()
-  return [(toprc(wd.css('.lowest .fares').text), date)]
+  return [(toprc(wd.css('.lowest .fares, .lowest .fares-requested').text), date)]
 
 @retry_if_timeout
 def farecmp():

@@ -330,10 +330,12 @@ def script(wd, cfg):
       yield 'united', ('united', [(229, date+rd.relativedelta(days=0)),
                                   (229, date+rd.relativedelta(days=1))])
 
+  raw_res = list(gen())
+
   # combine by date
   resinfo = collections.namedtuple('resinfo', 'prc group label')
   date2res = {}
-  for group, label, res in gen():
+  for group, (label, res) in raw_res:
     for prc,dat in res:
       date2res.setdefault(dat, []).append(resinfo(prc, group, label))
   ngroups = len(set(r.group for res in date2res.values() for r in res))
@@ -434,7 +436,7 @@ html(lang='en')
   with open(html_path, 'w') as f:
     f.write(html)
 
-  return text_report
+  return text_report, raw_res
 
 def main(argv = sys.argv):
   default_from = '%s@%s' % (getpass.getuser(), socket.getfqdn())
@@ -460,7 +462,9 @@ def main(argv = sys.argv):
     sys.stderr = open('/dev/null','w')
     with quitting(webdriver.Chrome()) as wd:
       sys.stdout, sys.stderr = stdout, stderr
-      out = script(wd, cfg)
+      out, raw_res = script(wd, cfg)
+
+  with open('raw results %s.pickle', 'w') as f: pickle.dump(raw_res, f, 2)
 
   if cfg.mailto:
     mail = MIMEText(out)

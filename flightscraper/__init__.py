@@ -421,9 +421,11 @@ html(lang='en')
         a(name="label-#{i}")
         h2= label
         h3 Pre-submit
-        img(src="#{pre_path(label)}")
+        a(href="#{pre_path(label)}")
+          img.scrthumb(src="#{pre_path(label)}")
         h3 Post-submit
-        img(src="#{post_path(label)}")
+        a(href="#{post_path(label)}")
+          img.scrthumb(src="#{post_path(label)}")
     script(src='//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js')
     script(src='//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/js/bootstrap.min.js')
     script(src='main.js')

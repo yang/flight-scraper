@@ -18,6 +18,11 @@ Install [Google Chrome] and [ChromeDriver].
 [Google Chrome]: https://www.google.com/chrome/
 [ChromeDriver]: http://code.google.com/p/chromedriver/downloads/list
 
+For the web reports, install Less and fetch/build the resources:
+
+    npm install -g less
+    make
+
 Install flight-scraper:
 
     pip install flight-scraper

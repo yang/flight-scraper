@@ -1,3 +1,5 @@
+# vim: fileencoding=utf8
+
 """
 Drives a browser to search for tickets across multiple airline sites,
 scraping/emailing/plotting fare information.
@@ -9,10 +11,16 @@ from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import NoSuchElementException
 import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, \
-    socket, subprocess, sys, time, pprint, calendar
+    socket, subprocess, sys, time, pprint, calendar, collections, urllib
 from email.mime.text import MIMEText
-import dateutil.relativedelta as rd, ipdb
+import dateutil.relativedelta as rd, ipdb, pyjade, pyjade.ext.html
 from parsedatetime import parsedatetime as pdt, parsedatetime_consts as pdc
+
+class html_compiler(pyjade.ext.html.HTMLCompiler):
+  def visitCode(self, code):
+    if not code.buffer and not code.block:
+      exec code.val.lstrip() in self.global_context, self.local_context
+    pyjade.ext.html.HTMLCompiler.visitCode(self, code)
 
 date_parser = pdt.Calendar(pdc.Constants())
 
@@ -279,54 +287,152 @@ def subproc(*args, **kwargs):
   finally: p.terminate(); p.wait()
 
 def script(wd, cfg):
-  buf = StringIO.StringIO()
   now = dt.datetime.now()
   org, dst, date = 'sfo', 'phl', dt.date(2012,12,21)
+  cal = calendar.Calendar(6)
 
-  def record(label, func):
+  html_path = 'report %s.html' % (now,)
+  def pre_path(label): return '%s presubmit (%s).png' % (label, now)
+  def post_path(label): return '%s postsubmit (%s).png' % (label, now)
+  def wrap(label, func):
     class very_rich_driver(rich_driver):
       def ckpt(self):
-        self.wd.save_screenshot('%s presubmit (%s).png' % (label, now))
-    res = func(very_rich_driver(wd, cfg.debug))
-    wd.save_screenshot('%s postsubmit (%s).png' % (label, now))
+        self.wd.save_screenshot(pre_path(label))
+    try: return func(very_rich_driver(wd, cfg.debug))
+    finally: wd.save_screenshot(post_path(label))
 
-    date2prc = dict((dat,prc) for prc,dat in res)
-    pprint.pprint(res)
-    cal = calendar.Calendar(6)
-    def gen_vals():
-      for dow in cal.iterweekdays():
-        yield '%6s' % calendar.day_abbr[dow]
-      yield '\n'
-      for day, dow in cal.itermonthdays2(*date.timetuple()[:2]):
-        val = date2prc.get(date + rd.relativedelta(day=day), '') if day > 0 \
-              else ''
-        if val != '': val = '$%s' % val
-        yield '%6s%s' % (val, '\n' if dow == 5 else '')
-    def gen_days():
-      for day, dow in cal.itermonthdays2(*date.timetuple()[:2]):
-        yield '%6s%s' % ('' if day == 0 else day, '\n' if dow == 5 else '')
-    vals = ''.join(gen_vals()).split('\n')
-    days = ''.join(gen_days()).split('\n')
-    msg = '\n'.join(line for lines in zip(vals, days) for line in lines)
-    print label
-    print msg
-    print >> buf, label
-    print >> buf, msg
+  def gen():
+    yield 'southwest sfo to phl', 'southwest sfo to phl', [(249, date)]
+    yield 'southwest sjc to phl', 'southwest sjc to phl', [(229, date)]
+    yield 'united', 'united', [(229, date+rd.relativedelta(days=0)),
+                               (229, date+rd.relativedelta(days=1))]
+    return
+    yield 'united', 'united', wrap(
+        lambda wd: united(wd, org, dst, date, nearby=True))
+    yield 'aa', 'aa', wrap(
+        lambda wd: aa(wd, org, dst, date, dist_org=60, dist_dst=30))
+    yield 'virginamerica', 'virginamerica', wrap(
+        lambda wd: virginamerica(wd, org, dst, date))
+    for offset in xrange(-3, 4, 1):
+      dat = date + rd.relativedelta(days=offset)
+      yield 'bing', 'bing %s' % dat, wrap(
+          lambda wd: bing(wd, org, dst, dat, near_org=True, near_dst=True))
+    yield 'southwest sfo to phl', 'southwest sfo to phl', wrap(
+        lambda wd: southwest(wd, org, dst, date))
+    yield 'southwest sjc to phl', 'southwest sjc to phl', wrap(
+        lambda wd: southwest(wd, 'sjc', dst, date))
+    yield 'southwest oak to phl', 'southwest oak to phl', wrap(
+        lambda wd: southwest(wd, 'oak', dst, date))
+    for offset in xrange(-3, 4, 1):
+      dat = date + rd.relativedelta(days=offset)
+      yield 'delta', 'delta %s' % dat, wrap(
+          lambda wd: delta(wd, org, dst, dat, nearby=True))
 
-  record('united', lambda wd: united(wd, org, dst, date, nearby=True))
-  record('aa', lambda wd: aa(wd, org, dst, date, dist_org=60, dist_dst=30))
-  record('virginamerica', lambda wd: virginamerica(wd, org, dst, date))
-  for offset in xrange(-3, 4, 1):
-    dat = date + rd.relativedelta(days=offset)
-    record('bing %s' % dat,
-        lambda wd: bing(wd, org, dst, dat, near_org=True, near_dst=True))
-  record('southwest sfo to phl', lambda wd: southwest(wd, org, dst, date))
-  record('southwest sjc to phl', lambda wd: southwest(wd, 'sjc', dst, date))
-  record('southwest oak to phl', lambda wd: southwest(wd, 'oak', dst, date))
-  for offset in xrange(-3, 4, 1):
-    dat = date + rd.relativedelta(days=offset)
-    record('delta %s' % dat, lambda wd: delta(wd, org, dst, dat, nearby=True))
-  return buf
+  # combine by date
+  resinfo = collections.namedtuple('resinfo', 'prc group label')
+  date2res = {}
+  for group, label, res in gen():
+    for prc,dat in res:
+      date2res.setdefault(dat, []).append(resinfo(prc, group, label))
+  ngroups = len(set(r.group for res in date2res.values() for r in res))
+
+  # text/email report
+  def gen_vals():
+    for dow in cal.iterweekdays():
+      yield '%6s' % calendar.day_abbr[dow]
+    yield '\n'
+    for day, dow in cal.itermonthdays2(*date.timetuple()[:2]):
+      dat = date + rd.relativedelta(day=day)
+      res = date2res.get(dat, [])
+      val = '$%s' % min(r.prc for r in res) \
+            if day > 0 and len(res) == ngroups else ''
+      yield '%6s%s' % (val, '\n' if dow == 5 else '')
+  def gen_days():
+    for day, dow in cal.itermonthdays2(*date.timetuple()[:2]):
+      yield '%6s%s' % ('' if day == 0 else day, '\n' if dow == 5 else '')
+  vals = ''.join(gen_vals()).split('\n')
+  days = ''.join(gen_days()).split('\n')
+  text_report = '\n'.join(line for lines in zip(vals, days) for line in lines)
+  text_report = '''
+%s
+
+<https://yz.mit.edu/flights/%s>
+'''.strip() % (text_report, urllib.quote_plus(html_path))
+  print text_report
+
+  # web report
+  rows = []
+  for day,dow in cal.itermonthdays2(*date.timetuple()[:2]):
+    if dow == 6: rows.append([])
+    rows[-1].append((day,dow))
+  labels = sorted(set(r.label for res in date2res.itervalues() for r in res))
+  tmpl = '''
+!!! 5
+html(lang='en')
+  head
+    title Flight Scraper Results for #{now}
+    link(href='//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/css/bootstrap-combined.min.css', rel='stylesheet')
+    link(href='main.css', rel='stylesheet')
+  body
+    h1 Flight Scraper Results for #{now}
+    table.table.table-bordered
+      thead
+        tr
+          for dow in cal.iterweekdays()
+            th= calendar.day_abbr[dow]
+      tbody
+        for row in rows
+          tr
+            for day, dow in row
+              td
+                if day > 0
+                  .day-number= day
+                  - dat = date + rd.relativedelta(day=day)
+                  - res = date2res.get(dat, [])
+                  - best = "$%s" % min(r.prc for r in res) if res else '-'
+                  if len(res) == ngroups
+                    .full.price= best
+                  else
+                    .partial.price= best
+    table.table.table-striped.table-hover
+      col
+      col
+      col
+      col(style='text-align: right')
+      thead
+        tr
+          th Date
+          th Search
+          th Price
+      tbody
+        for date, res in sorted(date2res.items())
+          for r in res
+            tr
+              td= date
+              td
+                a(href="#label-#{labels.index(r.label)}")= r.label
+              td $#{r.prc}
+    .screenshots
+      for i, label in enumerate(labels)
+        a(name="label-#{i}")
+        h2= label
+        h3 Pre-submit
+        img(src="#{pre_path(label)}")
+        h3 Post-submit
+        img(src="#{post_path(label)}")
+    script(src='//ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js')
+    script(src='//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/js/bootstrap.min.js')
+    script(src='main.js')
+  '''
+  compiler = html_compiler(pyjade.Parser(tmpl).parse())
+  env = dict(globals())
+  env.update(locals())
+  with pyjade.ext.html.local_context_manager(compiler, env):
+    html = compiler.compile()
+  with open(html_path, 'w') as f:
+    f.write(html)
+
+  return text_report
 
 def main(argv = sys.argv):
   default_from = '%s@%s' % (getpass.getuser(), socket.getfqdn())
@@ -353,7 +459,7 @@ def main(argv = sys.argv):
       out = script(wd, cfg)
 
   if cfg.mailto:
-    mail = MIMEText(out.getvalue())
+    mail = MIMEText(out)
     mail['From'] = cfg.mailfrom
     mail['To'] = cfg.mailto
     mail['Subject'] = 'Flight alert for %s' % \

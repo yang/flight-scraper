@@ -508,26 +508,35 @@ def main(argv = sys.argv):
     if not path.path('/tmp/.X11-unix/X%s' % display).exists():
       break
 
-  cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :%s -screen 0 1600x1200x24' % display
-  with subproc(cmd.split()) as xvfb:
-    if not cfg.debug: os.environ['DISPLAY'] = ':%s' % display
-    # This silencing isn't working
-    stdout, stderr = sys.stdout, sys.stderr
-    sys.stdout = open('/dev/null','w')
-    sys.stderr = open('/dev/null','w')
-    with quitting(webdriver.Chrome()) as wd:
-      sys.stdout, sys.stderr = stdout, stderr
-      email_text, email_html, raw_res = script(wd, cfg)
+  try:
+    cmd = 'sleep 99999999' if cfg.debug else 'Xvfb :%s -screen 0 1600x1200x24' % display
+    with subproc(cmd.split()) as xvfb:
+      if not cfg.debug: os.environ['DISPLAY'] = ':%s' % display
+      # This silencing isn't working
+      stdout, stderr = sys.stdout, sys.stderr
+      sys.stdout = open('/dev/null','w')
+      sys.stderr = open('/dev/null','w')
+      with quitting(webdriver.Chrome()) as wd:
+        sys.stdout, sys.stderr = stdout, stderr
+        email_text, email_html, raw_res = script(wd, cfg)
 
-  with open(cfg.outdir / 'results.pickle', 'w') as f: pickle.dump(raw_res, f, 2)
+    with open(cfg.outdir / 'results.pickle', 'w') as f: pickle.dump(raw_res, f, 2)
 
-  if cfg.mailto:
-    mail = MIMEMultipart('alternative')
+    if cfg.mailto:
+      mail = MIMEMultipart('alternative')
+      mail['From'] = cfg.mailfrom
+      mail['To'] = cfg.mailto
+      mail['Subject'] = 'Flight Scraper Results for %s' % fmt_time(now)
+      mail.attach(MIMEText(email_text, 'plain'))
+      mail.attach(MIMEText(email_html, 'html'))
+      with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
+        smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())
+  except:
+    msg = '%s\n\n%s' % (traceback.format_exc(),
+        cfg.urlbase / urllib.quote(cfg.outdir))
+    mail = MIMEText(msg, 'plain')
     mail['From'] = cfg.mailfrom
     mail['To'] = cfg.mailto
-    mail['Subject'] = 'Flight Scraper Results for %s' % \
-        (fmt_time(now),)
-    mail.attach(MIMEText(email_text, 'plain'))
-    mail.attach(MIMEText(email_html, 'html'))
+    mail['Subject'] = 'Flight Scraper Error for %s' % fmt_time(now)
     with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
       smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())

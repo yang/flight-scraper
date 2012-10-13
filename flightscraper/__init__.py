@@ -48,6 +48,13 @@ def parse_date(text):
     text = space.split(text, 1)[1]
   return dt.date(*date_parser.parse(text)[0][:3])
 
+def retry(f, trials=10):
+  for trial in xrange(trials):
+    try: return f()
+    except:
+      if trial < trials - 1: time.sleep(1)
+      else: raise
+
 def retry_if_nexist(multireturn=False):
   def dec(f):
     @functools.wraps(f)
@@ -238,8 +245,8 @@ def bing(wd, org, dst, date, near_org=False, near_dst=False):
   wd.getid('oneWayLabel').click()
   wd.getid('orig1Text').click().clear().send_keys(org).tab()
   wd.getid('dest1Text').click().clear().send_keys(dst).tab()
-  if near_org: wd.getid('no1').wait_displayed().set(True)
-  if near_dst: wd.getid('ne1').wait_displayed().set(True)
+  if near_org: retry(lambda: wd.getid('no1').set(True))
+  if near_dst: retry(lambda: wd.getid('ne1').set(True))
   wd.getid('leave1').clear().send_keys(fmt_date(date))
   wd.getid('PRI-HP').set(False)
   wd.ckpt()

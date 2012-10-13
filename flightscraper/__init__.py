@@ -13,6 +13,7 @@ import cPickle as pickle, cStringIO as StringIO, argparse, contextlib, \
     datetime as dt, functools, getpass, logging, ludibrio, os, re, smtplib, \
     socket, subprocess, sys, time, pprint, calendar, collections, urllib
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import dateutil.relativedelta as rd, ipdb, pyjade, pyjade.ext.html, path
 from parsedatetime import parsedatetime as pdt, parsedatetime_consts as pdc
 
@@ -21,6 +22,13 @@ class html_compiler(pyjade.ext.html.HTMLCompiler):
     if not code.buffer and not code.block:
       exec code.val.lstrip() in self.global_context, self.local_context
     pyjade.ext.html.HTMLCompiler.visitCode(self, code)
+
+def jade2html(tmpl, globals, locals):
+  compiler = html_compiler(pyjade.Parser(tmpl).parse())
+  env = dict(globals)
+  env.update(locals)
+  with pyjade.ext.html.local_context_manager(compiler, env):
+    return compiler.compile()
 
 date_parser = pdt.Calendar(pdc.Constants())
 now = dt.datetime.now()
@@ -342,7 +350,7 @@ def script(wd, cfg):
       date2res.setdefault(dat, []).append(resinfo(prc, group, label))
   ngroups = len(set(r.group for res in date2res.values() for r in res))
 
-  # text/email report
+  # email text report
   def gen_vals():
     for dow in cal.iterweekdays():
       yield '%6s' % calendar.day_abbr[dow]
@@ -358,17 +366,44 @@ def script(wd, cfg):
       yield '%6s%s' % ('' if day == 0 else day, '\n' if dow == 5 else '')
   vals = ''.join(gen_vals()).split('\n')
   days = ''.join(gen_days()).split('\n')
-  text_report = '\n'.join(line for lines in zip(vals, days) for line in lines)
-  text_report = '''
+  email_text = '\n'.join(line for lines in zip(vals, days) for line in lines)
+  email_text = '''
 %s
 
 <%s>
-'''.strip() % (text_report, cfg.urlbase / urllib.quote_plus(cfg.outdir / html_path))
-  print text_report
+'''.strip() % (email_text, report_url)
 
-  # web report
+  # email html report
+  email_tmpl = '''
+!!! 5
+html(lang='en')
+  body
+    table.table.table-bordered
+      thead
+        tr
+          for dow in cal.iterweekdays()
+            th= calendar.day_abbr[dow]
+      tbody
+        for week in cal.monthdays2calendar(*date.timetuple()[:2])
+          tr
+            for day, dow in week
+              td
+                if day > 0
+                  .day-number= day
+                  - dat = date + rd.relativedelta(day=day)
+                  - res = date2res.get(dat, [])
+                  - best = "$%s" % min(r.prc for r in res) if res else '-'
+                  if len(res) == ngroups
+                    .full.price= best
+                  else
+                    .partial.price -
+    a(href=report_url) See full report
+'''
+  email_html = jade2html(email_tmpl, globals(), locals())
+
+  # full web report
   labels = sorted(set(r.label for res in date2res.itervalues() for r in res))
-  tmpl = '''
+  full_tmpl = '''
 !!! 5
 html(lang='en')
   head
@@ -428,15 +463,11 @@ html(lang='en')
     script(src='//netdna.bootstrapcdn.com/twitter-bootstrap/2.1.1/js/bootstrap.min.js')
     script(src='main.js')
   '''
-  compiler = html_compiler(pyjade.Parser(tmpl).parse())
-  env = dict(globals())
-  env.update(locals())
-  with pyjade.ext.html.local_context_manager(compiler, env):
-    html = compiler.compile()
+  html = jade2html(full_tmpl, globals(), locals())
   with open(cfg.outdir / html_path, 'w') as f:
     f.write(html)
 
-  return text_report, raw_res
+  return email_text, email_html, raw_res
 
 def main(argv = sys.argv):
   default_from = '%s@%s' % (getpass.getuser(), socket.getfqdn())
@@ -469,15 +500,17 @@ def main(argv = sys.argv):
     sys.stderr = open('/dev/null','w')
     with quitting(webdriver.Chrome()) as wd:
       sys.stdout, sys.stderr = stdout, stderr
-      out, raw_res = script(wd, cfg)
+      email_text, email_html, raw_res = script(wd, cfg)
 
   with open(cfg.outdir / 'results.pickle', 'w') as f: pickle.dump(raw_res, f, 2)
 
   if cfg.mailto:
-    mail = MIMEText(out)
+    mail = MIMEMultipart('alternative')
     mail['From'] = cfg.mailfrom
     mail['To'] = cfg.mailto
     mail['Subject'] = 'Flight Scraper Results for %s' % \
         (fmt_time(now),)
+    mail.attach(MIMEText(email_text, 'plain'))
+    mail.attach(MIMEText(email_html, 'html'))
     with contextlib.closing(smtplib.SMTP('localhost')) as smtp:
       smtp.sendmail(mail['From'], mail['To'].split(','), mail.as_string())

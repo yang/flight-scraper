@@ -298,37 +298,37 @@ def script(wd, cfg):
     class very_rich_driver(rich_driver):
       def ckpt(self):
         self.wd.save_screenshot(pre_path(label))
-    try: return func(very_rich_driver(wd, cfg.debug))
+    try: return label, func(very_rich_driver(wd, cfg.debug))
     finally: wd.save_screenshot(post_path(label))
 
   def gen():
-    yield 'united', 'united', wrap(
+    yield 'united', wrap('united',
         lambda wd: united(wd, org, dst, date, nearby=True))
-    yield 'aa', 'aa', wrap(
+    yield 'aa', wrap('aa',
         lambda wd: aa(wd, org, dst, date, dist_org=60, dist_dst=30))
-    yield 'virginamerica', 'virginamerica', wrap(
+    yield 'virginamerica', wrap('virginamerica',
         lambda wd: virginamerica(wd, org, dst, date))
     for offset in xrange(-3, 4, 1):
       dat = date + rd.relativedelta(days=offset)
-      yield 'bing', 'bing %s' % dat, wrap(
+      yield 'bing', wrap('bing %s' % dat,
           lambda wd: bing(wd, org, dst, dat, near_org=True, near_dst=True))
-    yield 'southwest sfo to phl', 'southwest sfo to phl', wrap(
+    yield 'southwest sfo to phl', wrap('southwest sfo to phl',
         lambda wd: southwest(wd, org, dst, date))
-    yield 'southwest sjc to phl', 'southwest sjc to phl', wrap(
+    yield 'southwest sjc to phl', wrap('southwest sjc to phl',
         lambda wd: southwest(wd, 'sjc', dst, date))
-    yield 'southwest oak to phl', 'southwest oak to phl', wrap(
+    yield 'southwest oak to phl', wrap('southwest oak to phl',
         lambda wd: southwest(wd, 'oak', dst, date))
     for offset in xrange(-3, 4, 1):
       dat = date + rd.relativedelta(days=offset)
-      yield 'delta', 'delta %s' % dat, wrap(
+      yield 'delta', wrap('delta %s' % dat,
           lambda wd: delta(wd, org, dst, dat, nearby=True))
 
   if cfg.test:
     def gen():
-      yield 'southwest sfo to phl', 'southwest sfo to phl', [(249, date)]
-      yield 'southwest sjc to phl', 'southwest sjc to phl', [(229, date)]
-      yield 'united', 'united', [(229, date+rd.relativedelta(days=0)),
-                                 (229, date+rd.relativedelta(days=1))]
+      yield 'southwest sfo to phl', ('southwest sfo to phl', [(249, date)])
+      yield 'southwest sjc to phl', ('southwest sjc to phl', [(229, date)])
+      yield 'united', ('united', [(229, date+rd.relativedelta(days=0)),
+                                  (229, date+rd.relativedelta(days=1))])
 
   # combine by date
   resinfo = collections.namedtuple('resinfo', 'prc group label')

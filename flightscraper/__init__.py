@@ -148,6 +148,8 @@ class rich_web_elt(object):
     start = time.time()
     while time.time() - start < max and not self.elt.is_displayed():
       time.sleep(sleep)
+    if not self.elt.is_displayed():
+      raise Exception('exceeded timeout waiting for element to be displayed')
     return self
   def __getattr__(self, attr):
     return getattr(self.elt, attr)
